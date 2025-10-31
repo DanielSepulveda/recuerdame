@@ -17,6 +17,39 @@ const altarValidator = v.object({
   culturalElements: v.optional(v.array(v.string())),
 });
 
+// Altar with user role information
+const altarWithRoleValidator = v.object({
+  _id: v.id("altars"),
+  _creationTime: v.number(),
+  title: v.string(),
+  description: v.optional(v.string()),
+  ownerId: v.string(),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+  roomId: v.string(),
+  tags: v.optional(v.array(v.string())),
+  culturalElements: v.optional(v.array(v.string())),
+  userRole: v.union(v.literal("owner"), v.literal("editor"), v.literal("viewer")),
+});
+
+// Altar with full permission context
+const altarWithPermissionsValidator = v.object({
+  _id: v.id("altars"),
+  _creationTime: v.number(),
+  title: v.string(),
+  description: v.optional(v.string()),
+  ownerId: v.string(),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+  roomId: v.string(),
+  tags: v.optional(v.array(v.string())),
+  culturalElements: v.optional(v.array(v.string())),
+  userRole: v.optional(
+    v.union(v.literal("owner"), v.literal("editor"), v.literal("viewer"))
+  ),
+  isPubliclyShared: v.boolean(),
+});
+
 export const create = mutation({
   args: {
     title: v.optional(v.string()),
@@ -73,59 +106,86 @@ export const get = query({
   args: {
     roomId: v.string(),
   },
-  returns: v.union(altarValidator, v.null()),
+  returns: v.union(altarWithPermissionsValidator, v.null()),
   handler: async (ctx, args) => {
+    // Get the altar by roomId
     const altar = await ctx.db
       .query("altars")
       .withIndex("by_room_id", (q) => q.eq("roomId", args.roomId))
       .unique();
 
-    return altar ?? null;
-  },
-});
-
-export const listMy = query({
-  args: {
-    paginationOpts: paginationOptsValidator,
-  },
-  returns: v.object({
-    page: v.array(altarValidator),
-    isDone: v.boolean(),
-    continueCursor: v.string(),
-  }),
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return { page: [], isDone: true, continueCursor: "" };
+    if (!altar) {
+      return null;
     }
 
-    return await ctx.db
-      .query("altars")
-      .withIndex("by_owner", (q) => q.eq("ownerId", identity.subject))
-      .order("desc")
-      .paginate(args.paginationOpts);
+    // Check if altar is publicly shared
+    const publicShare = await ctx.db
+      .query("altar_shares")
+      .withIndex("by_altar", (q) => q.eq("altarId", altar._id))
+      .filter((q) => {
+        // Check if share is not expired
+        return q.or(
+          q.eq(q.field("expiresAt"), undefined),
+          q.gt(q.field("expiresAt"), Date.now())
+        );
+      })
+      .first();
+
+    const isPubliclyShared = !!publicShare;
+
+    // Get user identity for permission checks
+    const identity = await ctx.auth.getUserIdentity();
+
+    // If not authenticated, only allow access to publicly shared altars
+    if (!identity) {
+      if (isPubliclyShared) {
+        return {
+          ...altar,
+          userRole: undefined,
+          isPubliclyShared: true,
+        };
+      }
+      return null;
+    }
+
+    // Check user permissions
+    let userRole: "owner" | "editor" | "viewer" | undefined;
+
+    // Check if user is the owner
+    if (altar.ownerId === identity.subject) {
+      userRole = "owner";
+    } else {
+      // Check if user is a collaborator
+      const collaboration = await ctx.db
+        .query("collaborators")
+        .withIndex("by_altar_and_user", (q) =>
+          q.eq("altarId", altar._id).eq("userId", identity.subject)
+        )
+        .filter((q) => q.eq(q.field("status"), "active"))
+        .unique();
+
+      if (collaboration) {
+        userRole = collaboration.role;
+      }
+    }
+
+    // If user has no permissions and altar is not publicly shared, deny access
+    if (!userRole && !isPubliclyShared) {
+      return null;
+    }
+
+    return {
+      ...altar,
+      userRole,
+      isPubliclyShared,
+    };
   },
 });
 
 // Query to fetch all altars user owns or collaborates on as editor
 export const listMyAltarsAndCollaborations = query({
   args: {},
-  returns: v.array(
-    v.object({
-      _id: v.id("altars"),
-      _creationTime: v.number(),
-      title: v.string(),
-      description: v.optional(v.string()),
-      ownerId: v.string(),
-      createdAt: v.number(),
-      updatedAt: v.number(),
-      roomId: v.string(),
-      tags: v.optional(v.array(v.string())),
-      culturalElements: v.optional(v.array(v.string())),
-      // User's role for this altar
-      userRole: v.union(v.literal("owner"), v.literal("editor")),
-    })
-  ),
+  returns: v.array(altarWithRoleValidator),
   handler: async (ctx, _args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -138,16 +198,13 @@ export const listMyAltarsAndCollaborations = query({
       .withIndex("by_owner", (q) => q.eq("ownerId", identity.subject))
       .collect();
 
-    // Fetch active editor collaborations
+    // Fetch active editor collaborations using optimized index
     const collaborations = await ctx.db
       .query("collaborators")
-      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("status"), "active"),
-          q.eq(q.field("role"), "editor")
-        )
+      .withIndex("by_user_and_status", (q) =>
+        q.eq("userId", identity.subject).eq("status", "active")
       )
+      .filter((q) => q.eq(q.field("role"), "editor"))
       .collect();
 
     // Fetch altars for collaborations
@@ -180,26 +237,7 @@ export const getById = query({
   args: {
     altarId: v.id("altars"),
   },
-  returns: v.union(
-    v.object({
-      _id: v.id("altars"),
-      _creationTime: v.number(),
-      title: v.string(),
-      description: v.optional(v.string()),
-      ownerId: v.string(),
-      createdAt: v.number(),
-      updatedAt: v.number(),
-      roomId: v.string(),
-      tags: v.optional(v.array(v.string())),
-      culturalElements: v.optional(v.array(v.string())),
-      // Include permission info for the current user
-      userRole: v.optional(
-        v.union(v.literal("owner"), v.literal("editor"), v.literal("viewer"))
-      ),
-      isPubliclyShared: v.boolean(),
-    }),
-    v.null()
-  ),
+  returns: v.union(altarWithPermissionsValidator, v.null()),
   handler: async (ctx, args) => {
     // Get the altar
     const altar = await ctx.db.get(args.altarId);

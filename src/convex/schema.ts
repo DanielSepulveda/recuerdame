@@ -48,7 +48,8 @@ export default defineSchema({
     .index("by_altar", ["altarId"])
     .index("by_user", ["userId"])
     .index("by_altar_and_user", ["altarId", "userId"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_user_and_status", ["userId", "status"]),
 
   // Tracks public sharing instances with basic view metrics
   altar_shares: defineTable({

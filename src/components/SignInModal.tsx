@@ -28,7 +28,7 @@ export function SignInModal() {
             routing="hash"
             forceRedirectUrl={getAppUrl()}
             signUpForceRedirectUrl={getAppUrl()}
-            withSignUp={false}
+            withSignUp
             appearance={{
               elements: {
                 rootBox: "mx-auto",

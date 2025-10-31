@@ -1,3 +1,4 @@
+import { withPostHogConfig } from "@posthog/nextjs-config";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url);
@@ -6,7 +7,7 @@ const jiti = createJiti(import.meta.url);
 await jiti.import("./src/env");
 
 /** @type {import("next").NextConfig} */
-const config = {
+let config = {
   typescript: { ignoreBuildErrors: true },
 
   async rewrites() {
@@ -25,5 +26,19 @@ const config = {
   // This is required to support PostHog trailing slash API requests
   skipTrailingSlashRedirect: true,
 };
+
+// export default config;
+
+if (process.env.POSTHOG_API_KEY) {
+  config = withPostHogConfig(config, {
+    personalApiKey: process.env.POSTHOG_API_KEY,
+    envId: process.env.POSTHOG_ENV_ID,
+    sourcemaps: {
+      enabled: true,
+      project: "recuerdame.app",
+      deleteAfterUpload: true,
+    },
+  });
+}
 
 export default config;

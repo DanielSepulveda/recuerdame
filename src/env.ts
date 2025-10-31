@@ -6,6 +6,8 @@ export const env = createEnv({
     CONVEX_DEPLOYMENT: z.string().min(1),
     CLERK_JWT_ISSUER_DOMAIN: z.string().min(1),
     CLERK_SECRET_KEY: z.string().min(1),
+    POSTHOG_API_KEY: z.string().min(1).optional(),
+    POSTHOG_ENV_ID: z.string().min(1).optional(),
   },
 
   client: {
@@ -21,10 +23,14 @@ export const env = createEnv({
    * `process.env` or `import.meta.env`.
    */
   runtimeEnv: {
+    // SERVER
     CONVEX_DEPLOYMENT: process.env.CONVEX_DEPLOYMENT,
     CLERK_JWT_ISSUER_DOMAIN: process.env.CLERK_JWT_ISSUER_DOMAIN,
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
+    POSTHOG_API_KEY: process.env.POSTHOG_API_KEY,
+    POSTHOG_ENV_ID: process.env.POSTHOG_ENV_ID,
 
+    // CLIENT
     NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,

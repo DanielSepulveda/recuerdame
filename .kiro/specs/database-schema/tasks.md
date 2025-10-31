@@ -11,7 +11,7 @@
     - Include validation for required fields and owner authentication
     - _Requirements: 1.1, 4.1, 4.4_
 
-  - [ ] 2.2 Implement altar query functions
+  - [x] 2.2 Implement altar query functions
     - Write Convex query to fetch altars by owner ID
     - Write Convex query to fetch altar details by ID with permission checks
     - _Requirements: 1.3_

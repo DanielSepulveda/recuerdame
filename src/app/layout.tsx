@@ -4,6 +4,7 @@ import "./globals.css";
 import { esMX } from "@clerk/localizations";
 import { ClerkProvider } from "@clerk/nextjs";
 import { shadcn } from "@clerk/themes";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { env } from "@/env";
 
@@ -40,16 +41,18 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ClerkProvider
-          dynamic
-          localization={esMX}
-          publishableKey={env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-          appearance={{
-            theme: shadcn,
-          }}
-        >
-          <ConvexClientProvider>{children}</ConvexClientProvider>
-        </ClerkProvider>
+        <NuqsAdapter>
+          <ClerkProvider
+            dynamic
+            localization={esMX}
+            publishableKey={env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+            appearance={{
+              theme: shadcn,
+            }}
+          >
+            <ConvexClientProvider>{children}</ConvexClientProvider>
+          </ClerkProvider>
+        </NuqsAdapter>
       </body>
     </html>
   );

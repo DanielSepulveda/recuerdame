@@ -21,6 +21,7 @@ export default defineSchema({
     culturalElements: v.optional(v.array(v.string())), // Traditional elements included
   })
     .index("by_owner", ["ownerId"])
+    .index("by_room_id", ["roomId"])
     .index("by_created_at", ["createdAt"]),
 
   // Manages collaboration permissions and access control

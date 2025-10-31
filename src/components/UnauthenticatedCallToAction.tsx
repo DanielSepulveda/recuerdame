@@ -1,12 +1,9 @@
-"use client";
 import { Button } from "@/components/ui/button";
+import { useAuthModal } from "@/contexts/AuthModalContext";
 
-interface CallToActionProps {
-  isAuthenticated: boolean;
-  onCtaClick: () => void;
-}
+const UnauthenticatedCallToAction = () => {
+  const { openSignUp, openSignIn } = useAuthModal();
 
-const CallToAction = ({ isAuthenticated, onCtaClick }: CallToActionProps) => {
   return (
     <section className="py-24 px-4 relative overflow-hidden">
       {/* Decorative Background Elements */}
@@ -39,16 +36,17 @@ const CallToAction = ({ isAuthenticated, onCtaClick }: CallToActionProps) => {
               variant="hero"
               size="lg"
               className="text-xl px-12 py-7 h-auto animate-glow"
-              onClick={onCtaClick}
+              onClick={openSignUp}
             >
-              {isAuthenticated ? "Ir a mis altares" : "Crear Mi Altar"}
+              Crear Mi Altar
             </Button>
             <Button
               variant="festive"
               size="lg"
               className="text-xl px-12 py-7 h-auto"
+              onClick={openSignIn}
             >
-              Ver Altares Públicos
+              Iniciar Sesión
             </Button>
           </div>
 
@@ -74,4 +72,4 @@ const CallToAction = ({ isAuthenticated, onCtaClick }: CallToActionProps) => {
   );
 };
 
-export default CallToAction;
+export default UnauthenticatedCallToAction;

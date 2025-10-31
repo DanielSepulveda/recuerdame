@@ -1,7 +1,13 @@
+"use client";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 
-const Hero = () => {
+interface HeroProps {
+  isAuthenticated: boolean;
+  onCtaClick: () => void;
+}
+
+const Hero = ({ isAuthenticated, onCtaClick }: HeroProps) => {
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden papel-picado">
       {/* Background Image with Overlay */}
@@ -32,8 +38,13 @@ const Hero = () => {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-fade-in">
-          <Button variant="hero" size="lg" className="text-lg px-8 py-6 h-auto">
-            Crear Mi Altar
+          <Button
+            variant="hero"
+            size="lg"
+            className="text-lg px-8 py-6 h-auto"
+            onClick={onCtaClick}
+          >
+            {isAuthenticated ? "Ir a mis altares" : "Crear Mi Altar"}
           </Button>
           <Button
             variant="outline"

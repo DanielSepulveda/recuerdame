@@ -1,5 +1,5 @@
 import { handleUnfurlRequest } from "cloudflare-workers-unfurl";
-import { AutoRouter, error, type IRequest } from "itty-router";
+import { AutoRouter, cors, error, type IRequest } from "itty-router";
 import { handleAssetDownload, handleAssetUpload } from "./assetUploads";
 
 // make sure our sync durable object is made available to cloudflare
@@ -11,9 +11,40 @@ interface Env {
   ALLOWED_ORIGINS: string;
 }
 
-// we use itty-router (https://itty.dev/) to handle routing. in this example we turn on CORS because
-// we're hosting the worker separately to the client. you should restrict this to your own domain.
+// CORS configuration for cross-origin requests
+const { preflight, corsify } = cors({
+  origin: "*", // Will be validated per-request
+  allowMethods: ["GET", "POST", "OPTIONS"],
+  allowHeaders: [
+    "Content-Type",
+    "Authorization",
+    "Upgrade",
+    "Connection",
+    "Sec-WebSocket-Key",
+    "Sec-WebSocket-Version",
+    "Sec-WebSocket-Extensions",
+  ],
+});
+
+// Middleware to validate origin against allowed list
+const validateOrigin = (request: IRequest, env: Env) => {
+  const origin = request.headers.get("Origin");
+
+  // No origin header means same-origin or non-browser request - allow it
+  if (!origin) return;
+
+  const allowedOrigins =
+    env.ALLOWED_ORIGINS?.split(",").map((o) => o.trim()) || [];
+
+  if (!allowedOrigins.includes(origin)) {
+    return error(403, `Origin ${origin} not allowed`);
+  }
+};
+
+// we use itty-router (https://itty.dev/) to handle routing with CORS for cross-origin requests
 const router = AutoRouter<IRequest, [env: Env, ctx: ExecutionContext]>({
+  before: [preflight, validateOrigin],
+  finally: [corsify],
   catch: (e) => {
     console.error(e);
     return error(e);
@@ -23,10 +54,14 @@ const router = AutoRouter<IRequest, [env: Env, ctx: ExecutionContext]>({
   .get("/api/connect/:roomId", (request, env) => {
     const id = env.TLDRAW_ROOMS.idFromName(request.params.roomId);
     const room = env.TLDRAW_ROOMS.get(id);
-    return room.fetch(request.url, {
+
+    // Create a new Request to properly preserve WebSocket upgrade headers
+    const durableObjectRequest = new Request(request.url, {
+      method: request.method,
       headers: request.headers,
-      body: request.body,
     });
+
+    return room.fetch(durableObjectRequest);
   })
 
   // assets can be uploaded to the bucket under /uploads:

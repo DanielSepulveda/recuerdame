@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAuthModal } from "@/contexts/AuthModalContext";
+import { getAppUrl } from "@/lib/utils";
 
 export function SignInModal() {
   const { openModalType, closeModal } = useAuthModal();
@@ -19,22 +20,25 @@ export function SignInModal() {
       <DialogContent className="sm:max-w-md border-border bg-card">
         <DialogHeader>
           <DialogTitle className="text-center text-foreground">
-            Iniciar Sesión
+            Entrar
           </DialogTitle>
         </DialogHeader>
         <div className="flex justify-center">
           <SignIn
             routing="hash"
-            forceRedirectUrl="/app"
+            forceRedirectUrl={getAppUrl()}
+            signUpForceRedirectUrl={getAppUrl()}
+            withSignUp={false}
             appearance={{
               elements: {
                 rootBox: "mx-auto",
                 card: "bg-transparent shadow-none border-none",
                 headerTitle: "hidden",
                 headerSubtitle: "hidden",
-                socialButtonsBlockButton:
-                  "bg-primary hover:bg-primary/90 text-primary-foreground border-primary",
-                socialButtonsBlockButtonText: "text-primary-foreground",
+                cardBox: "border-none",
+                // socialButtonsBlockButton:
+                //   "border-2 border-border/60 bg-muted/20 hover:bg-muted/40 hover:border-border text-foreground",
+                // socialButtonsBlockButtonText: "text-foreground font-medium",
                 formButtonPrimary:
                   "bg-primary hover:bg-primary/90 text-primary-foreground",
                 formFieldInput:
@@ -44,6 +48,7 @@ export function SignInModal() {
                 identityPreviewEditButton: "text-primary hover:text-primary/90",
                 footerActionText: "text-muted-foreground",
                 footerActionLink: "text-primary hover:text-primary/90",
+                footerAction: "hidden",
                 dividerLine: "bg-border",
                 dividerText: "text-muted-foreground",
                 alternativeMethodsBlockButton:
@@ -51,6 +56,7 @@ export function SignInModal() {
                 otpCodeFieldInput:
                   "bg-input border-border text-foreground focus:ring-ring",
                 formResendCodeLink: "text-primary hover:text-primary/90",
+                footer: "hidden",
               },
               layout: {
                 socialButtonsPlacement: "top",

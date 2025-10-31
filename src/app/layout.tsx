@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { esMX } from "@clerk/localizations";
 import { ClerkProvider } from "@clerk/nextjs";
+import { shadcn } from "@clerk/themes";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { env } from "@/env";
 
@@ -43,6 +44,9 @@ export default function RootLayout({
           dynamic
           localization={esMX}
           publishableKey={env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+          appearance={{
+            theme: shadcn,
+          }}
         >
           <ConvexClientProvider>{children}</ConvexClientProvider>
         </ClerkProvider>

@@ -2,10 +2,27 @@
 
 import { UserButton, useUser } from "@clerk/nextjs";
 import Link from "next/link";
-import { protocol, rootDomain } from "@/lib/utils";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export default function AppHome() {
   const { user, isLoaded } = useUser();
+  const router = useRouter();
+  const createAltar = useMutation(api.altars.create);
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleCreateAltar = async () => {
+    try {
+      setIsCreating(true);
+      const altarId = await createAltar({});
+      router.push(`/app/altar/${altarId}`);
+    } catch (error) {
+      console.error("Error creating altar:", error);
+      setIsCreating(false);
+    }
+  };
 
   if (!isLoaded) {
     return (
@@ -41,12 +58,12 @@ export default function AppHome() {
           </div>
           <div className="flex items-center gap-4">
             <Link
-              href={`${protocol}://${rootDomain}`}
+              href="/"
               className="text-sm text-foreground/60 hover:text-foreground transition-colors"
             >
               Landing
             </Link>
-            <UserButton afterSignOutUrl={`${protocol}://${rootDomain}`} />
+            <UserButton afterSignOutUrl="/" />
           </div>
         </div>
       </header>
@@ -63,19 +80,28 @@ export default function AppHome() {
 
           {/* Quick Actions */}
           <div className="grid md:grid-cols-2 gap-6 mt-12">
-            <div className="border border-border rounded-lg p-6 hover:border-primary transition-colors cursor-pointer">
-              <h2 className="text-2xl font-semibold mb-2">Crear Altar</h2>
+            <button
+              onClick={handleCreateAltar}
+              disabled={isCreating}
+              className="border border-border rounded-lg p-6 hover:border-primary transition-colors cursor-pointer text-left disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <h2 className="text-2xl font-semibold mb-2">
+                {isCreating ? "Creando..." : "Crear Altar"}
+              </h2>
               <p className="text-muted-foreground">
                 Comienza un nuevo altar para honrar a un ser querido
               </p>
-            </div>
+            </button>
 
-            <div className="border border-border rounded-lg p-6 hover:border-primary transition-colors cursor-pointer">
+            <Link
+              href="/app/altares"
+              className="border border-border rounded-lg p-6 hover:border-primary transition-colors cursor-pointer block"
+            >
               <h2 className="text-2xl font-semibold mb-2">Mis Altares</h2>
               <p className="text-muted-foreground">
                 Ver y administrar tus altares existentes
               </p>
-            </div>
+            </Link>
           </div>
         </div>
       </main>

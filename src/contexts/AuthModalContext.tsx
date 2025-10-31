@@ -2,12 +2,11 @@
 
 import { createContext, ReactNode, useContext, useState } from "react";
 
-export type ModalType = "sign-in" | "sign-up" | null;
+export type ModalType = "sign-in" | null;
 
 interface AuthModalContextType {
   openModalType: ModalType;
   openSignIn: () => void;
-  openSignUp: () => void;
   closeModal: () => void;
 }
 
@@ -26,10 +25,6 @@ export function AuthModalProvider({ children }: AuthModalProviderProps) {
     setOpenModalType("sign-in");
   };
 
-  const openSignUp = () => {
-    setOpenModalType("sign-up");
-  };
-
   const closeModal = () => {
     setOpenModalType(null);
   };
@@ -37,7 +32,6 @@ export function AuthModalProvider({ children }: AuthModalProviderProps) {
   const value: AuthModalContextType = {
     openModalType,
     openSignIn,
-    openSignUp,
     closeModal,
   };
 

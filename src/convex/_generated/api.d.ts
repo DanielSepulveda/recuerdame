@@ -9,6 +9,7 @@
  */
 
 import type * as altars from "../altars.js";
+import type * as migrations from "../migrations.js";
 
 import type {
   ApiFromModules,
@@ -26,6 +27,7 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   altars: typeof altars;
+  migrations: typeof migrations;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

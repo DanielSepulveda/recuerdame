@@ -17,7 +17,7 @@ export type AltarRow = {
   roomId: string;
   tags?: string[];
   culturalElements?: string[];
-  userRole: "owner" | "editor";
+  userRole: "owner" | "editor" | "viewer";
 };
 
 export const columns: ColumnDef<AltarRow>[] = [

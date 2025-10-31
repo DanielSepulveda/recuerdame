@@ -1,73 +1,33 @@
 "use client";
 
 import { UserButton } from "@clerk/nextjs";
-import { useSync } from "@tldraw/sync";
 import { useQuery } from "convex/react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { TLComponents, TLUiOverrides, Tldraw } from "tldraw";
+import { AltarTldrawCanvas } from "@/components/altar/AltarTldrawCanvas";
 import { api } from "@/convex/_generated/api";
-import { getBookmarkPreview } from "@/lib/getBookmarkPreview";
-import { multiplayerAssetStore } from "@/lib/multiplayerAssetStore";
-import "tldraw/tldraw.css";
-
-const WORKER_URL =
-  process.env.NEXT_PUBLIC_TLDRAW_SYNC_URL || "http://localhost:8787";
-
-// Hide PageMenu to prevent multi-page functionality
-const customComponents: TLComponents = {
-  PageMenu: null,
-};
-
-// Remove page management and export actions
-const customOverrides: TLUiOverrides = {
-  actions(editor, actions) {
-    // Destructure to remove unwanted actions
-    const {
-      "move-to-new-page": _moveToNewPage,
-      "change-page-prev": _changePrev,
-      "change-page-next": _changeNext,
-      "export-as-svg": _exportSvg,
-      "export-as-png": _exportPng,
-      "export-all-as-svg": _exportAllSvg,
-      "export-all-as-png": _exportAllPng,
-      "copy-as-svg": _copySvg,
-      "copy-as-png": _copyPng,
-      ...keepActions
-    } = actions;
-    return keepActions;
-  },
-};
 
 export default function AltarPage() {
   const params = useParams();
   const roomId = params.altarId as string;
 
-  const altar = useQuery(api.altars.get, { roomId });
+  // const altar = useQuery(api.altars.get, { roomId });
 
-  // Connect to production sync backend
-  const wsUrl = WORKER_URL.replace(/^http/, "ws");
-  const store = useSync({
-    uri: `${wsUrl}/connect/${roomId}`,
-    assets: multiplayerAssetStore,
-    onCreateBookmarkFromUrl: getBookmarkPreview,
-  });
+  // if (altar === undefined) {
+  //   return (
+  //     <div className="flex h-screen w-screen items-center justify-center">
+  //       <div className="text-muted-foreground">Cargando altar...</div>
+  //     </div>
+  //   );
+  // }
 
-  if (altar === undefined) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center">
-        <div className="text-muted-foreground">Cargando altar...</div>
-      </div>
-    );
-  }
-
-  if (altar === null) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center">
-        <div className="text-muted-foreground">Altar no encontrado</div>
-      </div>
-    );
-  }
+  // if (altar === null) {
+  //   return (
+  //     <div className="flex h-screen w-screen items-center justify-center">
+  //       <div className="text-muted-foreground">Altar no encontrado</div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="flex flex-col h-screen">
@@ -101,15 +61,7 @@ export default function AltarPage() {
 
       {/* Tldraw Canvas */}
       <div className="flex-1 relative">
-        <div className="absolute inset-0">
-          <div className="tldraw__editor w-full h-full">
-            <Tldraw
-              store={store}
-              components={customComponents}
-              overrides={customOverrides}
-            />
-          </div>
-        </div>
+        <AltarTldrawCanvas roomId={roomId} />
       </div>
     </div>
   );

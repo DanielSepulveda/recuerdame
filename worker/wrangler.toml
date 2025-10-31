@@ -23,6 +23,12 @@ script_name = "recuerdame-tldraw-sync"
 tag = "v1"
 new_sqlite_classes = ["TldrawDurableObject"]
 
+# R2 bucket binding for local development
+[[r2_buckets]]
+binding = "TLDRAW_BUCKET"
+bucket_name = "dev-recuerdame-tldraw"
+preview_bucket_name = "dev-recuerdame-tldraw-preview"
+
 # Environment variables for local development
 # wrangler dev uses top-level vars
 [vars]

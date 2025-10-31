@@ -1,41 +1,32 @@
-import type { TLAsset, TLAssetStore } from "tldraw";
+import { type TLAssetStore, uniqueId } from "tldraw";
+import { env } from "@/env";
 
-const WORKER_URL =
-  process.env.NEXT_PUBLIC_TLDRAW_SYNC_URL || "http://localhost:8787";
-
+// How does our server handle assets like images and videos?
 export const multiplayerAssetStore: TLAssetStore = {
-  async upload(asset: TLAsset, file: File): Promise<string> {
-    try {
-      // Upload file to Worker backend
-      const response = await fetch(`${WORKER_URL}/uploads`, {
-        method: "POST",
-        headers: {
-          "Content-Type": file.type,
-        },
-        body: file,
-      });
+  // to upload an asset, we...
+  async upload(_asset, file) {
+    // ...create a unique name & URL...
+    const id = uniqueId();
+    const objectName = `${id}-${file.name}`.replace(/[^a-zA-Z0-9.]/g, "-");
+    const url = `${env.NEXT_PUBLIC_TLDRAW_SYNC_URL}/api/uploads/${objectName}`;
 
-      if (!response.ok) {
-        throw new Error(`Upload failed: ${response.statusText}`);
-      }
+    // ...POST it to out worker to upload it...
+    const response = await fetch(url, {
+      method: "POST",
+      body: file,
+    });
 
-      const data = await response.json();
-
-      // Return full URL to asset
-      return `${WORKER_URL}${data.url}`;
-    } catch (error) {
-      console.error("Asset upload failed:", error);
-      throw error;
+    if (!response.ok) {
+      throw new Error(`Failed to upload asset: ${response.statusText}`);
     }
+
+    // ...and return the URL to be stored with the asset record.
+    return { src: url };
   },
 
-  async resolve(asset: TLAsset): Promise<string | null> {
-    // Assets are already stored as full URLs from upload()
-    // If the asset has a src, return it directly
-    if ("src" in asset && typeof asset.src === "string") {
-      return asset.src;
-    }
-
-    return null;
+  // to retrieve an asset, we can just use the same URL. you could customize this to add extra
+  // auth, or to serve optimized versions / sizes of the asset.
+  resolve(asset) {
+    return asset.props.src;
   },
 };

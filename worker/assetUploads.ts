@@ -1,185 +1,116 @@
-import { Env } from "./TldrawDurableObject";
+import { error, type IRequest } from "itty-router";
 
-// Maximum file size: 10MB
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-
-// Allowed MIME types for assets
-const ALLOWED_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/svg+xml",
-  "image/webp",
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-];
-
-export async function handleAssetUpload(
-  request: Request,
-  env: Env,
-): Promise<Response> {
-  try {
-    const contentType = request.headers.get("Content-Type");
-
-    // Validate content type
-    if (!contentType || !ALLOWED_TYPES.includes(contentType)) {
-      console.warn(`Invalid content type attempted: ${contentType}`);
-      return new Response(
-        JSON.stringify({
-          error: "Invalid content type",
-          allowedTypes: ALLOWED_TYPES,
-        }),
-        {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            ...getCorsHeaders(request, env),
-          },
-        },
-      );
-    }
-
-    // Validate file size
-    const contentLength = request.headers.get("Content-Length");
-    if (contentLength && parseInt(contentLength) > MAX_FILE_SIZE) {
-      console.warn(
-        `File too large attempted: ${contentLength} bytes (max: ${MAX_FILE_SIZE})`,
-      );
-      return new Response(
-        JSON.stringify({
-          error: "File too large",
-          maxSize: MAX_FILE_SIZE,
-        }),
-        {
-          status: 413,
-          headers: {
-            "Content-Type": "application/json",
-            ...getCorsHeaders(request, env),
-          },
-        },
-      );
-    }
-
-    // Generate unique asset ID
-    const assetId = crypto.randomUUID();
-    const key = `assets/${assetId}`;
-
-    console.log(`[Asset Upload] Uploading ${contentType} to ${key}`);
-
-    // Stream upload to R2
-    await env.TLDRAW_BUCKET.put(key, request.body, {
-      httpMetadata: {
-        contentType,
-      },
-    });
-
-    // Return asset URL
-    const assetUrl = `/assets/${assetId}`;
-
-    console.log(`[Asset Upload] Successfully uploaded: ${assetUrl}`);
-
-    return new Response(
-      JSON.stringify({
-        assetId,
-        url: assetUrl,
-      }),
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-          ...getCorsHeaders(request, env),
-        },
-      },
-    );
-  } catch (error) {
-    console.error("[Asset Upload] Upload failed:", error);
-    return new Response(
-      JSON.stringify({
-        error: "Upload failed",
-        message: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          ...getCorsHeaders(request, env),
-        },
-      },
-    );
-  }
+// assets are stored in the bucket under the /uploads path
+function getAssetObjectName(uploadId: string) {
+  return `uploads/${uploadId.replace(/[^a-zA-Z0-9_-]+/g, "_")}`;
 }
 
-export async function handleAssetGet(
-  assetId: string,
-  env: Env,
-): Promise<Response> {
-  try {
-    if (!assetId) {
-      return new Response(
-        JSON.stringify({ error: "Asset ID required" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-    }
+// declare global {
+//   interface CacheStorage {
+//     default: Cache;
+//   }
+// }
 
-    const key = `assets/${assetId}`;
-    console.log(`[Asset Get] Fetching asset: ${key}`);
-
-    const object = await env.TLDRAW_BUCKET.get(key);
-
-    if (!object) {
-      console.warn(`[Asset Get] Asset not found: ${key}`);
-      return new Response(
-        JSON.stringify({ error: "Asset not found" }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    console.log(`[Asset Get] Successfully retrieved: ${key}`);
-
-    // Return asset with appropriate headers for caching
-    return new Response(object.body, {
-      headers: {
-        "Content-Type":
-          object.httpMetadata?.contentType || "application/octet-stream",
-        "Cache-Control": "public, max-age=31536000, immutable",
-        ETag: object.etag,
-      },
-    });
-  } catch (error) {
-    console.error("[Asset Get] Retrieval failed:", error);
-    return new Response(
-      JSON.stringify({
-        error: "Failed to retrieve asset",
-        message: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
-  }
+interface Env {
+  TLDRAW_ROOMS: DurableObjectNamespace;
+  TLDRAW_BUCKET: R2Bucket;
+  ALLOWED_ORIGINS: string;
 }
 
-function getCorsHeaders(request: Request, env: Env): Record<string, string> {
-  const origin = request.headers.get("Origin") || "";
-  const allowedOrigins = env.ALLOWED_ORIGINS.split(",");
+// when a user uploads an asset, we store it in the bucket. we only allow image and video assets.
+export async function handleAssetUpload(request: IRequest, env: Env) {
+  const objectName = getAssetObjectName(request.params.uploadId);
 
-  const headers: Record<string, string> = {
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Max-Age": "86400",
-  };
-
-  if (allowedOrigins.includes(origin)) {
-    headers["Access-Control-Allow-Origin"] = origin;
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.startsWith("image/") && !contentType.startsWith("video/")) {
+    return error(400, "Invalid content type");
   }
 
-  return headers;
+  if (await env.TLDRAW_BUCKET.head(objectName)) {
+    return error(409, "Upload already exists");
+  }
+
+  await env.TLDRAW_BUCKET.put(objectName, request.body, {
+    httpMetadata: request.headers,
+  });
+
+  return { ok: true };
+}
+
+// when a user downloads an asset, we retrieve it from the bucket. we also cache the response for performance.
+export async function handleAssetDownload(
+  request: IRequest,
+  env: Env,
+  ctx: ExecutionContext
+) {
+  const objectName = getAssetObjectName(request.params.uploadId);
+
+  // if we have a cached response for this request (automatically handling ranges etc.), return it
+  const cacheKey = new Request(request.url, { headers: request.headers });
+  const cachedResponse = await caches.default.match(cacheKey);
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+
+  // if not, we try to fetch the asset from the bucket
+  const object = await env.TLDRAW_BUCKET.get(objectName, {
+    range: request.headers,
+    onlyIf: request.headers,
+  });
+
+  if (!object) {
+    return error(404);
+  }
+
+  // write the relevant metadata to the response headers
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+
+  // assets are immutable, so we can cache them basically forever:
+  headers.set("cache-control", "public, max-age=31536000, immutable");
+  headers.set("etag", object.httpEtag);
+
+  // we set CORS headers so all clients can access assets. we do this here so our `cors` helper in
+  // worker.ts doesn't try to set extra cors headers on responses that have been read from the
+  // cache, which isn't allowed by cloudflare.
+  headers.set("access-control-allow-origin", "*");
+
+  // cloudflare doesn't set the content-range header automatically in writeHttpMetadata, so we
+  // need to do it ourselves.
+  // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
+  let contentRange;
+  if (object.range) {
+    if ("suffix" in object.range) {
+      const start = object.size - object.range.suffix;
+      const end = object.size - 1;
+      contentRange = `bytes ${start}-${end}/${object.size}`;
+    } else {
+      const start = object.range.offset ?? 0;
+      const end = object.range.length
+        ? start + object.range.length - 1
+        : object.size - 1;
+      if (start !== 0 || end !== object.size - 1) {
+        contentRange = `bytes ${start}-${end}/${object.size}`;
+      }
+    }
+  }
+
+  if (contentRange) {
+    headers.set("content-range", contentRange);
+  }
+
+  // make sure we get the correct body/status for the response
+  const body = "body" in object && object.body ? object.body : null;
+  const status = body ? (contentRange ? 206 : 200) : 304;
+
+  // we only cache complete (200) responses
+  if (status === 200) {
+    const [cacheBody, responseBody] = body!.tee();
+    ctx.waitUntil(
+      caches.default.put(cacheKey, new Response(cacheBody, { headers, status }))
+    );
+    return new Response(responseBody, { headers, status });
+  }
+
+  return new Response(body, { headers, status });
 }

@@ -1,5 +1,11 @@
-import { TLSocketRoom } from "@tldraw/sync-core";
-import { TLRecord, createTLSchema } from "@tldraw/tlschema";
+import { type RoomSnapshot, TLSocketRoom } from "@tldraw/sync-core";
+import {
+  createTLSchema,
+  // defaultBindingSchemas,
+  defaultShapeSchemas,
+  type TLRecord,
+} from "@tldraw/tlschema";
+import { AutoRouter, error, type IRequest } from "itty-router";
 import throttle from "lodash.throttle";
 
 export interface Env {
@@ -8,174 +14,117 @@ export interface Env {
   ALLOWED_ORIGINS: string;
 }
 
-// Custom schema supporting custom shapes/bindings (extend as needed)
-const schema = createTLSchema();
+// add custom shapes and bindings here if needed:
+const schema = createTLSchema({
+  shapes: { ...defaultShapeSchemas },
+  // bindings: { ...defaultBindingSchemas },
+});
 
-export class TldrawDurableObject implements DurableObject {
-  private room: TLSocketRoom<TLRecord> | null = null;
-  private roomId: string;
-  private snapshotPromise: Promise<any> | null = null;
-  private throttledSave: (() => void) | null = null;
+// each whiteboard room is hosted in a DurableObject:
+// https://developers.cloudflare.com/durable-objects/
+
+// there's only ever one durable object instance per room. it keeps all the room state in memory and
+// handles websocket connections. periodically, it persists the room state to the R2 bucket.
+export class TldrawDurableObject {
+  private r2: R2Bucket;
+  // the room ID will be missing while the room is being initialized
+  private roomId: string | null = null;
+  // when we load the room from the R2 bucket, we keep it here. it's a promise so we only ever
+  // load it once.
+  private roomPromise: Promise<TLSocketRoom<TLRecord, void>> | null = null;
 
   constructor(
-    private state: DurableObjectState,
-    private env: Env,
+    private readonly ctx: DurableObjectState,
+    env: Env
   ) {
-    this.roomId = state.id.toString();
-  }
+    this.r2 = env.TLDRAW_BUCKET;
 
-  async fetch(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-
-    // Handle CORS preflight
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        headers: this.getCorsHeaders(request),
-      });
-    }
-
-    // WebSocket upgrade for sync connection
-    if (request.headers.get("Upgrade") === "websocket") {
-      const pair = new WebSocketPair();
-      const [client, server] = Object.values(pair);
-
-      await this.handleWebSocket(server);
-
-      return new Response(null, {
-        status: 101,
-        webSocket: client,
-        headers: this.getCorsHeaders(request),
-      });
-    }
-
-    return new Response("Expected WebSocket", {
-      status: 400,
-      headers: this.getCorsHeaders(request),
+    ctx.blockConcurrencyWhile(async () => {
+      this.roomId = ((await this.ctx.storage.get("roomId")) ?? null) as
+        | string
+        | null;
     });
   }
 
-  private async handleWebSocket(ws: WebSocket) {
-    try {
-      // Lazy initialize room on first connection
-      if (!this.room) {
-        console.log(`[Room ${this.roomId}] Initializing room`);
-
-        // Load snapshot once (lazy loading pattern)
-        const initialSnapshot = await this.getSnapshot();
-
-        // Create throttled save function (10s interval)
-        this.throttledSave = throttle(() => {
-          this.saveSnapshot().catch((err) =>
-            console.error(`[Room ${this.roomId}] Save error:`, err),
-          );
-        }, 10000);
-
-        this.room = new TLSocketRoom<TLRecord>({
-          initialSnapshot,
-          schema,
-
-          // Throttled persistence on data change
-          onDataChange: () => {
-            if (this.throttledSave) {
-              this.throttledSave();
-            }
-          },
-
-          // Clean up when sessions removed
-          onSessionRemoved: async (room, args) => {
-            console.log(
-              `[Room ${this.roomId}] Session removed. Remaining: ${args.numSessionsRemaining}`,
-            );
-
-            // Save final snapshot when last session disconnects
-            if (args.numSessionsRemaining === 0) {
-              console.log(`[Room ${this.roomId}] Last session left, saving final snapshot`);
-              await this.saveSnapshot();
-            }
-          },
+  private readonly router = AutoRouter({
+    catch: (e) => {
+      console.log(e);
+      return error(e);
+    },
+  })
+    // when we get a connection request, we stash the room id if needed and handle the connection
+    .get("/api/connect/:roomId", async (request) => {
+      if (!this.roomId) {
+        await this.ctx.blockConcurrencyWhile(async () => {
+          await this.ctx.storage.put("roomId", request.params.roomId);
+          this.roomId = request.params.roomId;
         });
       }
+      return this.handleConnect(request);
+    });
 
-      // Connect WebSocket to room
-      const sessionId = crypto.randomUUID();
-      console.log(`[Room ${this.roomId}] New connection: ${sessionId}`);
-
-      this.room.handleSocketConnect({
-        socket: ws,
-        sessionId,
-      });
-    } catch (error) {
-      console.error(`[Room ${this.roomId}] WebSocket error:`, error);
-      ws.close(1011, "Internal error");
-    }
+  // `fetch` is the entry point for all requests to the Durable Object
+  fetch(request: Request): Response | Promise<Response> {
+    return this.router.fetch(request);
   }
 
-  private async getSnapshot() {
-    // Lazy loading: only load snapshot once
-    if (!this.snapshotPromise) {
-      this.snapshotPromise = this.loadSnapshot();
-    }
-    return this.snapshotPromise;
+  // what happens when someone tries to connect to this room?
+  async handleConnect(request: IRequest) {
+    // extract query params from request
+    const sessionId = request.query.sessionId as string;
+    if (!sessionId) return error(400, "Missing sessionId");
+
+    // Create the websocket pair for the client
+    const { 0: clientWebSocket, 1: serverWebSocket } = new WebSocketPair();
+    serverWebSocket.accept();
+
+    // load the room, or retrieve it if it's already loaded
+    const room = await this.getRoom();
+
+    // connect the client to the room
+    room.handleSocketConnect({ sessionId, socket: serverWebSocket });
+
+    // return the websocket connection to the client
+    return new Response(null, { status: 101, webSocket: clientWebSocket });
   }
 
-  private async loadSnapshot() {
-    try {
-      const key = `room-${this.roomId}.json`;
-      console.log(`[Room ${this.roomId}] Loading snapshot from R2: ${key}`);
+  getRoom() {
+    const roomId = this.roomId;
+    if (!roomId) throw new Error("Missing roomId");
 
-      const object = await this.env.TLDRAW_BUCKET.get(key);
+    if (!this.roomPromise) {
+      this.roomPromise = (async () => {
+        // fetch the room from R2
+        const roomFromBucket = await this.r2.get(`rooms/${roomId}`);
 
-      if (!object) {
-        console.log(`[Room ${this.roomId}] No existing snapshot, starting fresh`);
-        return undefined;
-      }
+        // if it doesn't exist, we'll just create a new empty room
+        const initialSnapshot = roomFromBucket
+          ? ((await roomFromBucket.json()) as RoomSnapshot)
+          : undefined;
 
-      const data = await object.text();
-      const snapshot = JSON.parse(data);
-      console.log(`[Room ${this.roomId}] Loaded snapshot successfully`);
-      return snapshot;
-    } catch (error) {
-      console.error(`[Room ${this.roomId}] Failed to load snapshot:`, error);
-      return undefined;
-    }
-  }
-
-  private async saveSnapshot() {
-    if (!this.room) return;
-
-    try {
-      const snapshot = this.room.getCurrentSnapshot();
-      const key = `room-${this.roomId}.json`;
-
-      console.log(`[Room ${this.roomId}] Saving snapshot to R2: ${key}`);
-
-      await this.env.TLDRAW_BUCKET.put(key, JSON.stringify(snapshot), {
-        httpMetadata: {
-          contentType: "application/json",
-        },
-      });
-
-      console.log(`[Room ${this.roomId}] Snapshot saved successfully`);
-    } catch (error) {
-      console.error(`[Room ${this.roomId}] Failed to save snapshot:`, error);
-      throw error;
-    }
-  }
-
-  private getCorsHeaders(request: Request): Record<string, string> {
-    const origin = request.headers.get("Origin") || "";
-    const allowedOrigins = this.env.ALLOWED_ORIGINS.split(",");
-
-    const headers: Record<string, string> = {
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Access-Control-Max-Age": "86400",
-    };
-
-    if (allowedOrigins.includes(origin)) {
-      headers["Access-Control-Allow-Origin"] = origin;
+        // create a new TLSocketRoom. This handles all the sync protocol & websocket connections.
+        // it's up to us to persist the room state to R2 when needed though.
+        return new TLSocketRoom<TLRecord, void>({
+          schema,
+          initialSnapshot,
+          onDataChange: () => {
+            // and persist whenever the data in the room changes
+            this.schedulePersistToR2();
+          },
+        });
+      })();
     }
 
-    return headers;
+    return this.roomPromise;
   }
+
+  // we throttle persistance so it only happens every 10 seconds
+  schedulePersistToR2 = throttle(async () => {
+    if (!this.roomPromise || !this.roomId) return;
+    const room = await this.getRoom();
+
+    // convert the room to JSON and upload it to R2
+    const snapshot = JSON.stringify(room.getCurrentSnapshot());
+    await this.r2.put(`rooms/${this.roomId}`, snapshot);
+  }, 10_000);
 }

@@ -1,46 +1,47 @@
-const WORKER_URL =
-  process.env.NEXT_PUBLIC_TLDRAW_SYNC_URL || "http://localhost:8787";
+import {
+  AssetRecordType,
+  getHashForString,
+  type TLAsset,
+  type TLBookmarkAsset,
+} from "tldraw";
+import { env } from "@/env";
 
-export interface BookmarkPreview {
-  title?: string;
-  description?: string;
-  image?: string;
+// How does our server handle bookmark unfurling?
+export async function getBookmarkPreview({
+  url,
+}: {
   url: string;
-}
+}): Promise<TLAsset> {
+  // we start with an empty asset record
+  const asset: TLBookmarkAsset = {
+    id: AssetRecordType.createId(getHashForString(url)),
+    typeName: "asset",
+    type: "bookmark",
+    meta: {},
+    props: {
+      src: url,
+      description: "",
+      image: "",
+      favicon: "",
+      title: "",
+    },
+  };
 
-/**
- * Fetch bookmark preview from worker unfurl endpoint
- * Used by tldraw to show rich previews when URLs are pasted
- */
-export async function getBookmarkPreview(
-  url: string,
-): Promise<BookmarkPreview> {
   try {
+    // try to fetch the preview data from the server
     const response = await fetch(
-      `${WORKER_URL}/api/unfurl?url=${encodeURIComponent(url)}`,
+      `${env.NEXT_PUBLIC_TLDRAW_SYNC_URL}/api/unfurl?url=${encodeURIComponent(url)}`
     );
+    const data: any = await response.json();
 
-    if (!response.ok) {
-      throw new Error(`Unfurl failed: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error("Failed to fetch bookmark preview:", error);
-
-    // Return minimal preview on error
-    try {
-      const parsedUrl = new URL(url);
-      return {
-        url,
-        title: parsedUrl.hostname,
-      };
-    } catch {
-      return {
-        url,
-        title: url,
-      };
-    }
+    // fill in our asset with whatever info we found
+    asset.props.description = data?.description ?? "";
+    asset.props.image = data?.image ?? "";
+    asset.props.favicon = data?.favicon ?? "";
+    asset.props.title = data?.title ?? "";
+  } catch (e) {
+    console.error(e);
   }
+
+  return asset;
 }

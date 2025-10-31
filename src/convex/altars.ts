@@ -86,7 +86,7 @@ export const create = mutation({
     const now = Date.now();
 
     // Create altar with all metadata (Requirement 1.1)
-    await ctx.db.insert("altars", {
+    const altarId = await ctx.db.insert("altars", {
       title,
       description: args.description,
       ownerId: identity.subject,
@@ -95,6 +95,15 @@ export const create = mutation({
       roomId,
       tags: args.tags,
       culturalElements: args.culturalElements,
+    });
+
+    // Create owner membership record
+    await ctx.db.insert("memberships", {
+      altarId,
+      userId: identity.subject,
+      role: "owner",
+      createdAt: now,
+      status: "active",
     });
 
     // Return room ID for tldraw integration (Requirement 4.4)
@@ -148,25 +157,19 @@ export const get = query({
       return null;
     }
 
-    // Check user permissions
+    // Check user permissions via memberships table
     let userRole: "owner" | "editor" | "viewer" | undefined;
 
-    // Check if user is the owner
-    if (altar.ownerId === identity.subject) {
-      userRole = "owner";
-    } else {
-      // Check if user is a collaborator
-      const collaboration = await ctx.db
-        .query("collaborators")
-        .withIndex("by_altar_and_user", (q) =>
-          q.eq("altarId", altar._id).eq("userId", identity.subject)
-        )
-        .filter((q) => q.eq(q.field("status"), "active"))
-        .unique();
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_altar_and_user", (q) =>
+        q.eq("altarId", altar._id).eq("userId", identity.subject)
+      )
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .unique();
 
-      if (collaboration) {
-        userRole = collaboration.role;
-      }
+    if (membership) {
+      userRole = membership.role;
     }
 
     // If user has no permissions and altar is not publicly shared, deny access
@@ -192,43 +195,34 @@ export const listMyAltarsAndCollaborations = query({
       return [];
     }
 
-    // Fetch owned altars
-    const ownedAltars = await ctx.db
-      .query("altars")
-      .withIndex("by_owner", (q) => q.eq("ownerId", identity.subject))
-      .collect();
-
-    // Fetch active editor collaborations using optimized index
-    const collaborations = await ctx.db
-      .query("collaborators")
+    // Single query: fetch all active memberships (owner + editor only)
+    const memberships = await ctx.db
+      .query("memberships")
       .withIndex("by_user_and_status", (q) =>
         q.eq("userId", identity.subject).eq("status", "active")
       )
-      .filter((q) => q.eq(q.field("role"), "editor"))
+      .filter((q) =>
+        q.or(q.eq(q.field("role"), "owner"), q.eq(q.field("role"), "editor"))
+      )
       .collect();
 
-    // Fetch altars for collaborations
-    const collaboratedAltars = await Promise.all(
-      collaborations.map(async (collab) => {
-        const altar = await ctx.db.get(collab.altarId);
-        return altar;
+    // Fetch altars for all memberships
+    const altarsWithRole = await Promise.all(
+      memberships.map(async (membership) => {
+        const altar = await ctx.db.get(membership.altarId);
+        if (!altar) return null;
+
+        return {
+          ...altar,
+          userRole: membership.role,
+        };
       })
     );
 
-    // Combine and annotate with role
-    const ownedWithRole = ownedAltars.map((altar) => ({
-      ...altar,
-      userRole: "owner" as const,
-    }));
-
-    const collaboratedWithRole = collaboratedAltars
-      .filter((altar): altar is NonNullable<typeof altar> => altar !== null)
-      .map((altar) => ({
-        ...altar,
-        userRole: "editor" as const,
-      }));
-
-    return [...ownedWithRole, ...collaboratedWithRole];
+    // Filter out nulls and return
+    return altarsWithRole.filter(
+      (altar): altar is NonNullable<typeof altar> => altar !== null
+    );
   },
 });
 
@@ -275,25 +269,19 @@ export const getById = query({
       throw new Error("Not authenticated");
     }
 
-    // Check user permissions
+    // Check user permissions via memberships table
     let userRole: "owner" | "editor" | "viewer" | undefined;
 
-    // Check if user is the owner
-    if (altar.ownerId === identity.subject) {
-      userRole = "owner";
-    } else {
-      // Check if user is a collaborator
-      const collaboration = await ctx.db
-        .query("collaborators")
-        .withIndex("by_altar_and_user", (q) =>
-          q.eq("altarId", args.altarId).eq("userId", identity.subject)
-        )
-        .filter((q) => q.eq(q.field("status"), "active"))
-        .unique();
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_altar_and_user", (q) =>
+        q.eq("altarId", args.altarId).eq("userId", identity.subject)
+      )
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .unique();
 
-      if (collaboration) {
-        userRole = collaboration.role;
-      }
+    if (membership) {
+      userRole = membership.role;
     }
 
     // If user has no permissions and altar is not publicly shared, deny access
@@ -328,14 +316,22 @@ export const update = mutation({
       throw new Error("Not authenticated");
     }
 
-    // Get the altar to verify ownership
+    // Get the altar to verify it exists
     const altar = await ctx.db.get(args.altarId);
     if (!altar) {
       throw new Error("Altar not found");
     }
 
     // Check if user is the owner (only owners can update altar metadata)
-    if (altar.ownerId !== identity.subject) {
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_altar_and_user", (q) =>
+        q.eq("altarId", args.altarId).eq("userId", identity.subject)
+      )
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .unique();
+
+    if (!membership || membership.role !== "owner") {
       throw new Error(
         "Access denied: Only the altar owner can update metadata"
       );
@@ -397,27 +393,39 @@ export const deleteAltar = mutation({
       throw new Error("Not authenticated");
     }
 
-    // Get the altar to verify ownership
+    // Get the altar to verify it exists
     const altar = await ctx.db.get(args.altarId);
     if (!altar) {
       throw new Error("Altar not found");
     }
 
     // Check if user is the owner (only owners can delete altars)
-    if (altar.ownerId !== identity.subject) {
+    const ownerMembership = await ctx.db
+      .query("memberships")
+      .withIndex("by_altar_and_user", (q) =>
+        q.eq("altarId", args.altarId).eq("userId", identity.subject)
+      )
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .unique();
+
+    if (!ownerMembership || ownerMembership.role !== "owner") {
       throw new Error(
         "Access denied: Only the altar owner can delete the altar"
       );
     }
 
-    // Check if altar has active collaborators (Requirement 1.5)
-    const activeCollaborators = await ctx.db
-      .query("collaborators")
+    // Check if altar has active members (excluding owner) (Requirement 1.5)
+    const activeMembers = await ctx.db
+      .query("memberships")
       .withIndex("by_altar", (q) => q.eq("altarId", args.altarId))
       .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
 
-    if (activeCollaborators.length > 0) {
+    const hasActiveCollaborators = activeMembers.some(
+      (m) => m.userId !== identity.subject
+    );
+
+    if (hasActiveCollaborators) {
       throw new Error(
         "Cannot delete altar with active collaborators. Please remove all collaborators first."
       );
@@ -425,14 +433,14 @@ export const deleteAltar = mutation({
 
     // Clean up related records before deleting the altar
 
-    // 1. Delete all collaborator records (including pending and removed ones)
-    const allCollaborators = await ctx.db
-      .query("collaborators")
+    // 1. Delete all membership records (including pending and removed ones)
+    const allMemberships = await ctx.db
+      .query("memberships")
       .withIndex("by_altar", (q) => q.eq("altarId", args.altarId))
       .collect();
 
-    for (const collaborator of allCollaborators) {
-      await ctx.db.delete(collaborator._id);
+    for (const membership of allMemberships) {
+      await ctx.db.delete(membership._id);
     }
 
     // 2. Delete all share records

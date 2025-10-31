@@ -24,17 +24,22 @@ export default defineSchema({
     .index("by_room_id", ["roomId"])
     .index("by_created_at", ["createdAt"]),
 
-  // Manages collaboration permissions and access control
-  collaborators: defineTable({
+  // Manages all user-altar relationships (owners, editors, viewers)
+  // Following multi-tenant memberships pattern
+  memberships: defineTable({
     altarId: v.id("altars"),
     userId: v.string(), // Clerk user ID
 
-    // Permission levels
-    role: v.union(v.literal("editor"), v.literal("viewer")),
+    // Permission levels - includes owner
+    role: v.union(
+      v.literal("owner"),
+      v.literal("editor"),
+      v.literal("viewer"),
+    ),
 
-    // Collaboration metadata
-    invitedAt: v.number(), // Unix timestamp
-    invitedBy: v.string(), // Clerk user ID of inviter
+    // Membership metadata
+    createdAt: v.number(), // Unix timestamp
+    invitedBy: v.optional(v.string()), // Clerk user ID of inviter (undefined for owner)
     joinedAt: v.optional(v.number()), // When they first accessed
     lastActiveAt: v.optional(v.number()), // Last interaction timestamp
 
@@ -49,7 +54,8 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_altar_and_user", ["altarId", "userId"])
     .index("by_status", ["status"])
-    .index("by_user_and_status", ["userId", "status"]),
+    .index("by_user_and_status", ["userId", "status"])
+    .index("by_user_status_and_role", ["userId", "status", "role"]),
 
   // Tracks public sharing instances with basic view metrics
   altar_shares: defineTable({

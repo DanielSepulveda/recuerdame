@@ -6,7 +6,7 @@
   - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
 - [ ] 2. Create altar management functions
-  - [ ] 2.1 Implement altar creation function
+  - [x] 2.1 Implement altar creation function
     - Write Convex mutation to create new altars with generated tldraw room IDs
     - Include validation for required fields and owner authentication
     - _Requirements: 1.1, 4.1, 4.4_

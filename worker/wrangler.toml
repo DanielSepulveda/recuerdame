@@ -1,0 +1,23 @@
+name = "recuerdame-tldraw-sync"
+main = "worker.ts"
+compatibility_date = "2024-10-01"
+
+# Durable Objects binding for room sync
+[[durable_objects.bindings]]
+name = "TLDRAW_ROOMS"
+class_name = "TldrawDurableObject"
+script_name = "recuerdame-tldraw-sync"
+
+# Durable Object migrations
+[[migrations]]
+tag = "v1"
+new_classes = ["TldrawDurableObject"]
+
+# R2 bucket binding for assets and snapshots
+[[r2_buckets]]
+binding = "TLDRAW_BUCKET"
+bucket_name = "recuerdame-tldraw"
+
+# CORS configuration
+[vars]
+ALLOWED_ORIGINS = "http://localhost:3000,https://recuerdame.vercel.app"

@@ -44,3 +44,10 @@ next-env.d.ts
 # clerk configuration (can include secrets)
 /.clerk/
 .playwright-mcp
+
+# cloudflare worker
+/worker/.wrangler
+/worker/dist
+/worker/.dev.vars
+/worker/wrangler.toml.local
+/worker/node_modules

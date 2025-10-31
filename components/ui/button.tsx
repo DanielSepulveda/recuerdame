@@ -19,6 +19,8 @@ const buttonVariants = cva(
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
+        hero: "bg-gradient-to-r from-[hsl(30,95%,55%)] via-[hsl(15,90%,55%)] to-[hsl(320,75%,50%)] text-white font-bold hover:shadow-[0_10px_40px_-10px_hsl(30,95%,55%,0.4)] transition-all duration-300",
+        festive: "bg-[hsl(320,75%,50%)] text-white font-bold hover:bg-[hsl(320,75%,45%)] hover:shadow-[0_10px_40px_-10px_hsl(320,75%,50%,0.4)] transition-all duration-300",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

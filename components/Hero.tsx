@@ -1,15 +1,17 @@
 import { Button } from "@/components/ui/button";
-import heroImage from "@/assets/hero-altar.jpg";
+import Image from "next/image";
 
 const Hero = () => {
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden papel-picado">
       {/* Background Image with Overlay */}
       <div className="absolute inset-0 z-0">
-        <img
-          src={heroImage}
+        <Image
+          src="/hero-altar.jpg"
           alt="Altar de Día de los Muertos con flores de cempasúchil"
-          className="w-full h-full object-cover opacity-40"
+          fill
+          className="object-cover opacity-40"
+          priority
         />
         <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/60 to-background"></div>
       </div>
@@ -18,7 +20,7 @@ const Hero = () => {
       <div className="relative z-10 container mx-auto px-4 py-20 text-center">
         <div className="animate-float">
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold mb-6 glow-text">
-            Ofrenda
+            Recuerdame
           </h1>
           <p className="text-xl md:text-2xl lg:text-3xl text-muted-foreground mb-4 max-w-3xl mx-auto">
             Honra a tus seres queridos con un altar colaborativo

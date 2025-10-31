@@ -13,7 +13,7 @@ interface Env {
 
 // CORS configuration for cross-origin requests
 const { preflight, corsify } = cors({
-  origin: "*", // Will be validated per-request
+  origin: "*",
   allowMethods: ["GET", "POST", "OPTIONS"],
   allowHeaders: [
     "Content-Type",
@@ -41,10 +41,22 @@ const validateOrigin = (request: IRequest, env: Env) => {
   }
 };
 
+// Conditional CORS wrapper - SKIP WebSocket upgrade responses (status 101)
+// WebSocket protocol requires clean response with only specific headers
+const conditionalCorsify = (response: Response) => {
+  // WebSocket upgrade responses MUST NOT have CORS headers added
+  if (response.status === 101) {
+    return response;
+  }
+
+  // Apply CORS headers to regular HTTP responses
+  return corsify(response);
+};
+
 // we use itty-router (https://itty.dev/) to handle routing with CORS for cross-origin requests
 const router = AutoRouter<IRequest, [env: Env, ctx: ExecutionContext]>({
   before: [preflight, validateOrigin],
-  finally: [corsify],
+  finally: [conditionalCorsify], // Only apply CORS to non-WebSocket responses
   catch: (e) => {
     console.error(e);
     return error(e);

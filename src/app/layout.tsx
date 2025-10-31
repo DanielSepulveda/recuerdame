@@ -5,6 +5,7 @@ import { esMX } from "@clerk/localizations";
 import { ClerkProvider } from "@clerk/nextjs";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { env } from "@/env";
+import { PostHogProvider } from "@/providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -44,7 +45,9 @@ export default function RootLayout({
           localization={esMX}
           publishableKey={env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
         >
-          <ConvexClientProvider>{children}</ConvexClientProvider>
+          <ConvexClientProvider>
+            <PostHogProvider>{children}</PostHogProvider>
+          </ConvexClientProvider>
         </ClerkProvider>
       </body>
     </html>

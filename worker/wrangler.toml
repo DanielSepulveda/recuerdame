@@ -26,31 +26,31 @@ new_sqlite_classes = ["TldrawDurableObject"]
 # R2 bucket binding for local development
 [[r2_buckets]]
 binding = "TLDRAW_BUCKET"
-bucket_name = "dev-recuerdame-tldraw"
-preview_bucket_name = "dev-recuerdame-tldraw-preview"
-
-# Environment variables for local development
-# wrangler dev uses top-level vars
-[vars]
-ALLOWED_ORIGINS = "http://localhost:3000"
-
-# Production Environment (deployed)
-[env.production]
-name = "recuerdame-tldraw-sync"
-
-[[env.production.durable_objects.bindings]]
-name = "TLDRAW_ROOMS"
-class_name = "TldrawDurableObject"
-script_name = "recuerdame-tldraw-sync"
-
-[[env.production.migrations]]
-tag = "v1"
-new_sqlite_classes = ["TldrawDurableObject"]
-
-[[env.production.r2_buckets]]
-binding = "TLDRAW_BUCKET"
 bucket_name = "prd-recuerdame-tldraw"
 preview_bucket_name = "prd-recuerdame-tldraw-preview"
 
-[env.production.vars]
-ALLOWED_ORIGINS = "http://localhost:3000,https://recuerdame.vercel.app,https://recuerdame.app"
+# Environment variables for local development
+# wrangler dev uses top-level vars
+# [vars]
+# ALLOWED_ORIGINS = "http://localhost:3000"
+
+# Production Environment (deployed)
+# [env.production]
+# name = "recuerdame-tldraw-sync"
+
+# [[env.production.durable_objects.bindings]]
+# name = "TLDRAW_ROOMS"
+# class_name = "TldrawDurableObject"
+# script_name = "recuerdame-tldraw-sync"
+
+# [[env.production.migrations]]
+# tag = "v1"
+# new_sqlite_classes = ["TldrawDurableObject"]
+
+# [[env.production.r2_buckets]]
+# binding = "TLDRAW_BUCKET"
+# bucket_name = "prd-recuerdame-tldraw"
+# preview_bucket_name = "prd-recuerdame-tldraw-preview"
+
+# [env.production.vars]
+# ALLOWED_ORIGINS = "http://localhost:3000,https://recuerdame.vercel.app,https://recuerdame.app"

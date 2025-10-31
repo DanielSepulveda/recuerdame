@@ -1,10 +1,18 @@
 "use client";
 
 import { useSync } from "@tldraw/sync";
-import { type TLComponents, type TLUiOverrides, Tldraw } from "tldraw";
+import { useMemo } from "react";
+import {
+  defaultShapeUtils,
+  type TLComponents,
+  type TLUiOverrides,
+  Tldraw,
+} from "tldraw";
 import { env } from "@/env";
 import { getBookmarkPreview } from "@/lib/getBookmarkPreview";
 import { multiplayerAssetStore } from "@/lib/multiplayerAssetStore";
+import { CustomAssetShapeUtil } from "@/lib/tldraw/CustomAssetShape";
+import { AssetLibraryPanel } from "./AssetLibraryPanel";
 import "tldraw/tldraw.css";
 
 // const WORKER_URL = env.NEXT_PUBLIC_TLDRAW_SYNC_URL;
@@ -38,6 +46,8 @@ interface AltarTldrawCanvasProps {
   roomId: string;
 }
 
+const customShapes = [...defaultShapeUtils, CustomAssetShapeUtil];
+
 export function AltarTldrawCanvas({ roomId }: AltarTldrawCanvasProps) {
   // Connect to sync backend
   console.log(`${env.NEXT_PUBLIC_TLDRAW_SYNC_URL}/api/connect/${roomId}`);
@@ -45,6 +55,7 @@ export function AltarTldrawCanvas({ roomId }: AltarTldrawCanvasProps) {
   const store = useSync({
     uri: `${env.NEXT_PUBLIC_TLDRAW_SYNC_URL}/api/connect/${roomId}`,
     assets: multiplayerAssetStore,
+    shapeUtils: customShapes,
     // onCreateBookmarkFromUrl: getBookmarkPreview,
   });
 
@@ -53,13 +64,17 @@ export function AltarTldrawCanvas({ roomId }: AltarTldrawCanvasProps) {
       <div className="tldraw__editor w-full h-full">
         <Tldraw
           store={store}
+          shapeUtils={customShapes}
           components={customComponents}
           overrides={customOverrides}
-          // onMount={(editor) => {
-          //   // when the editor is ready, we need to register our bookmark unfurling service
-          //   editor.registerExternalAssetHandler("url", getBookmarkPreview);
-          // }}
-        />
+          deepLinks
+          onMount={(editor) => {
+            // when the editor is ready, we need to register our bookmark unfurling service
+            editor.registerExternalAssetHandler("url", getBookmarkPreview);
+          }}
+        >
+          <AssetLibraryPanel />
+        </Tldraw>
       </div>
     </div>
   );

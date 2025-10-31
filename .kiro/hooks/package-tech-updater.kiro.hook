@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Package Tech Updater",
+  "description": "Monitors package.json for changes and updates the tech.md steering document with newly installed packages",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "package.json"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A change has been detected in package.json. Please analyze the changes to identify any newly installed packages and update the tech.md steering document to include information about these new packages. Make sure to categorize them appropriately within the existing structure and provide brief descriptions of their purpose in the project."
+  }
+}

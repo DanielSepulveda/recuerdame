@@ -4,6 +4,7 @@ import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { AltarsTableWrapper } from "@/components/altars/altars-table-wrapper";
+import { JoinAltarDialog } from "@/components/altars/JoinAltarDialog";
 
 export default function AltaresPage() {
   return (
@@ -40,11 +41,14 @@ export default function AltaresPage() {
         {/* Main Content */}
         <main className="container mx-auto px-4 py-8">
           <div className="max-w-6xl mx-auto">
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold mb-2">Mis Altares</h1>
-              <p className="text-muted-foreground">
-                Altares que has creado y aquellos en los que colaboras
-              </p>
+            <div className="mb-8 flex items-start justify-between">
+              <div>
+                <h1 className="text-3xl font-bold mb-2">Mis Altares</h1>
+                <p className="text-muted-foreground">
+                  Altares que has creado y aquellos en los que colaboras
+                </p>
+              </div>
+              <JoinAltarDialog />
             </div>
 
             <AltarsTableWrapper />

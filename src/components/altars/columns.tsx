@@ -1,10 +1,25 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, MoreHorizontal } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 
 export type AltarRow = {
   _id: string;
@@ -73,6 +88,54 @@ export const columns: ColumnDef<AltarRow>[] = [
             day: "numeric",
           })}
         </span>
+      );
+    },
+  },
+  {
+    id: "actions",
+    header: "Acciones",
+    cell: ({ row }) => {
+      const altar = row.original;
+      const [showIdDialog, setShowIdDialog] = useState(false);
+
+      return (
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <span className="sr-only">Abrir menú</span>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShowIdDialog(true)}>
+                Ver ID del altar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Dialog open={showIdDialog} onOpenChange={setShowIdDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>ID del Altar</DialogTitle>
+                <DialogDescription>
+                  Comparte este ID con otros para que puedan unirse como editores
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <Input
+                  readOnly
+                  value={altar._id}
+                  onClick={(e) => e.currentTarget.select()}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  Haz clic en el campo para seleccionar y copiar
+                </p>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </>
       );
     },
   },

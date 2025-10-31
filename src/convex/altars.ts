@@ -457,3 +457,68 @@ export const deleteAltar = mutation({
     await ctx.db.delete(args.altarId);
   },
 });
+
+// Mutation to join an altar as editor using altar ID
+export const joinAltarAsEditor = mutation({
+  args: {
+    altarId: v.id("altars"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Validate authentication
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    // Check altar exists
+    const altar = await ctx.db.get(args.altarId);
+    if (!altar) {
+      throw new Error("Altar not found");
+    }
+
+    // Check if user already has membership (any status)
+    const existingMembership = await ctx.db
+      .query("memberships")
+      .withIndex("by_altar_and_user", (q) =>
+        q.eq("altarId", args.altarId).eq("userId", identity.subject)
+      )
+      .first();
+
+    if (existingMembership) {
+      if (existingMembership.status === "active") {
+        throw new Error("You are already a member of this altar");
+      }
+      // If previously removed, reactivate membership
+      if (existingMembership.status === "removed") {
+        await ctx.db.patch(existingMembership._id, {
+          status: "active",
+          joinedAt: Date.now(),
+          lastActiveAt: Date.now(),
+        });
+        return;
+      }
+      // If pending, activate it
+      if (existingMembership.status === "pending") {
+        await ctx.db.patch(existingMembership._id, {
+          status: "active",
+          joinedAt: Date.now(),
+          lastActiveAt: Date.now(),
+        });
+        return;
+      }
+    }
+
+    // Create new editor membership
+    const now = Date.now();
+    await ctx.db.insert("memberships", {
+      altarId: args.altarId,
+      userId: identity.subject,
+      role: "editor",
+      createdAt: now,
+      joinedAt: now,
+      lastActiveAt: now,
+      status: "active",
+    });
+  },
+});

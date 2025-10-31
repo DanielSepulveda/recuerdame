@@ -1,6 +1,16 @@
 name = "recuerdame-tldraw-sync"
 main = "worker.ts"
-compatibility_date = "2024-10-01"
+compatibility_date = "2025-05-08"
+compatibility_flags = ["nodejs_compat"]
+upload_source_maps = true
+preview_urls = true
+
+[[routes]]
+pattern = "sync.recuerdame.app"
+custom_domain = true
+
+[observability]
+enabled = true
 
 # Durable Objects binding for room sync
 [[durable_objects.bindings]]
@@ -8,29 +18,33 @@ name = "TLDRAW_ROOMS"
 class_name = "TldrawDurableObject"
 script_name = "recuerdame-tldraw-sync"
 
-# Durable Object migrations
+# Durable Object migrations (used for local dev)
 [[migrations]]
 tag = "v1"
-new_classes = ["TldrawDurableObject"]
+new_sqlite_classes = ["TldrawDurableObject"]
 
-# Development Environment
-[env.dev]
-name = "recuerdame-tldraw-sync-dev"
-
-[[env.dev.r2_buckets]]
-binding = "TLDRAW_BUCKET"
-bucket_name = "dev-recuerdame-tldraw"
-
-[env.dev.vars]
+# Environment variables for local development
+# wrangler dev uses top-level vars
+[vars]
 ALLOWED_ORIGINS = "http://localhost:3000"
 
-# Production Environment
+# Production Environment (deployed)
 [env.production]
 name = "recuerdame-tldraw-sync"
+
+[[env.production.durable_objects.bindings]]
+name = "TLDRAW_ROOMS"
+class_name = "TldrawDurableObject"
+script_name = "recuerdame-tldraw-sync"
+
+[[env.production.migrations]]
+tag = "v1"
+new_sqlite_classes = ["TldrawDurableObject"]
 
 [[env.production.r2_buckets]]
 binding = "TLDRAW_BUCKET"
 bucket_name = "prd-recuerdame-tldraw"
+preview_bucket_name = "prd-recuerdame-tldraw-preview"
 
 [env.production.vars]
 ALLOWED_ORIGINS = "http://localhost:3000,https://recuerdame.vercel.app,https://recuerdame.app"

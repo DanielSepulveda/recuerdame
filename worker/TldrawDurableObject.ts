@@ -4,7 +4,9 @@ import {
   // defaultBindingSchemas,
   defaultShapeSchemas,
   type TLRecord,
+  createShapePropsMigrationSequence,
 } from "@tldraw/tlschema";
+import { T } from "@tldraw/validate";
 import { AutoRouter, error, type IRequest } from "itty-router";
 import throttle from "lodash.throttle";
 
@@ -14,22 +16,22 @@ export interface Env {
   ALLOWED_ORIGINS: string;
 }
 
+// define custom asset shape schema
+const customAssetMigrations = createShapePropsMigrationSequence({
+  sequence: [],
+});
+
 // add custom shapes and bindings here if needed:
 const schema = createTLSchema({
   shapes: {
     ...defaultShapeSchemas,
     "custom-asset": {
       props: {
-        w: { type: "number", default: 200 },
-        h: { type: "number", default: 200 },
-        assetId: { type: "string", default: "" },
+        w: T.number,
+        h: T.number,
+        assetId: T.string,
       },
-      migrations: {
-        currentVersion: 1,
-        migrators: {
-          1: { up: (shape) => shape, down: (shape) => shape },
-        },
-      },
+      migrations: customAssetMigrations,
     },
   },
   // bindings: { ...defaultBindingSchemas },

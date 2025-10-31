@@ -1,12 +1,12 @@
 import {
-  type TLBaseShape,
-  type TLResizeInfo,
   BaseBoxShapeUtil,
   HTMLContainer,
   type RecordProps,
   Rectangle2d,
   resizeBox,
   T,
+  type TLBaseShape,
+  type TLResizeInfo,
 } from "tldraw";
 
 // Define the custom asset shape type
@@ -59,7 +59,10 @@ export class CustomAssetShapeUtil extends BaseBoxShapeUtil<CustomAssetShape> {
   }
 
   // Handle resize operations
-  override onResize(shape: CustomAssetShape, info: TLResizeInfo<CustomAssetShape>) {
+  override onResize(
+    shape: CustomAssetShape,
+    info: TLResizeInfo<CustomAssetShape>
+  ) {
     return resizeBox(shape, info);
   }
 

@@ -16,7 +16,7 @@
     - Write Convex query to fetch altar details by ID with permission checks
     - _Requirements: 1.3_
 
-  - [ ] 2.3 Implement altar update and deletion functions
+  - [x] 2.3 Implement altar update and deletion functions
     - Write Convex mutation to update altar metadata
     - Write Convex mutation to delete altars with proper cleanup of related records
     - _Requirements: 1.4, 1.5_

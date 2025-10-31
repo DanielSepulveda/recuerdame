@@ -1,6 +1,7 @@
-import { TLAsset, TLAssetStore } from "tldraw";
+import type { TLAsset, TLAssetStore } from "tldraw";
 
-const WORKER_URL = process.env.NEXT_PUBLIC_TLDRAW_SYNC_URL || "http://localhost:8787";
+const WORKER_URL =
+  process.env.NEXT_PUBLIC_TLDRAW_SYNC_URL || "http://localhost:8787";
 
 export const multiplayerAssetStore: TLAssetStore = {
   async upload(asset: TLAsset, file: File): Promise<string> {

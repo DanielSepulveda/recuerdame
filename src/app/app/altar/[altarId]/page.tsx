@@ -5,12 +5,14 @@ import { useSync } from "@tldraw/sync";
 import { useQuery } from "convex/react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Tldraw, TLUiOverrides, TLComponents } from "tldraw";
+import { TLComponents, TLUiOverrides, Tldraw } from "tldraw";
 import { api } from "@/convex/_generated/api";
+import { getBookmarkPreview } from "@/lib/getBookmarkPreview";
 import { multiplayerAssetStore } from "@/lib/multiplayerAssetStore";
 import "tldraw/tldraw.css";
 
-const WORKER_URL = process.env.NEXT_PUBLIC_TLDRAW_SYNC_URL || "http://localhost:8787";
+const WORKER_URL =
+  process.env.NEXT_PUBLIC_TLDRAW_SYNC_URL || "http://localhost:8787";
 
 // Hide PageMenu to prevent multi-page functionality
 const customComponents: TLComponents = {
@@ -48,6 +50,7 @@ export default function AltarPage() {
   const store = useSync({
     uri: `${wsUrl}/connect/${roomId}`,
     assets: multiplayerAssetStore,
+    onCreateBookmarkFromUrl: getBookmarkPreview,
   });
 
   if (altar === undefined) {

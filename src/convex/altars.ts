@@ -1,6 +1,6 @@
 import { createId } from "@paralleldrive/cuid2";
-import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
+import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
 // Shared validator for altar return type
@@ -124,9 +124,9 @@ export const listMyAltarsAndCollaborations = query({
       culturalElements: v.optional(v.array(v.string())),
       // User's role for this altar
       userRole: v.union(v.literal("owner"), v.literal("editor")),
-    }),
+    })
   ),
-  handler: async (ctx, args) => {
+  handler: async (ctx, _args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return [];
@@ -145,8 +145,8 @@ export const listMyAltarsAndCollaborations = query({
       .filter((q) =>
         q.and(
           q.eq(q.field("status"), "active"),
-          q.eq(q.field("role"), "editor"),
-        ),
+          q.eq(q.field("role"), "editor")
+        )
       )
       .collect();
 
@@ -155,7 +155,7 @@ export const listMyAltarsAndCollaborations = query({
       collaborations.map(async (collab) => {
         const altar = await ctx.db.get(collab.altarId);
         return altar;
-      }),
+      })
     );
 
     // Combine and annotate with role
@@ -165,9 +165,9 @@ export const listMyAltarsAndCollaborations = query({
     }));
 
     const collaboratedWithRole = collaboratedAltars
-      .filter((altar) => altar !== null)
+      .filter((altar): altar is NonNullable<typeof altar> => altar !== null)
       .map((altar) => ({
-        ...altar!,
+        ...altar,
         userRole: "editor" as const,
       }));
 
@@ -194,11 +194,11 @@ export const getById = query({
       culturalElements: v.optional(v.array(v.string())),
       // Include permission info for the current user
       userRole: v.optional(
-        v.union(v.literal("owner"), v.literal("editor"), v.literal("viewer")),
+        v.union(v.literal("owner"), v.literal("editor"), v.literal("viewer"))
       ),
       isPubliclyShared: v.boolean(),
     }),
-    v.null(),
+    v.null()
   ),
   handler: async (ctx, args) => {
     // Get the altar
@@ -215,7 +215,7 @@ export const getById = query({
         // Check if share is not expired
         return q.or(
           q.eq(q.field("expiresAt"), undefined),
-          q.gt(q.field("expiresAt"), Date.now()),
+          q.gt(q.field("expiresAt"), Date.now())
         );
       })
       .first();
@@ -248,7 +248,7 @@ export const getById = query({
       const collaboration = await ctx.db
         .query("collaborators")
         .withIndex("by_altar_and_user", (q) =>
-          q.eq("altarId", args.altarId).eq("userId", identity.subject),
+          q.eq("altarId", args.altarId).eq("userId", identity.subject)
         )
         .filter((q) => q.eq(q.field("status"), "active"))
         .unique();
@@ -261,7 +261,7 @@ export const getById = query({
     // If user has no permissions and altar is not publicly shared, deny access
     if (!userRole && !isPubliclyShared) {
       throw new Error(
-        "Access denied: You don't have permission to view this altar",
+        "Access denied: You don't have permission to view this altar"
       );
     }
 
@@ -270,5 +270,144 @@ export const getById = query({
       userRole,
       isPubliclyShared,
     };
+  },
+});
+
+// Mutation to update altar metadata (Requirements 1.4)
+export const update = mutation({
+  args: {
+    altarId: v.id("altars"),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
+    culturalElements: v.optional(v.array(v.string())),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Validate authentication
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get the altar to verify ownership
+    const altar = await ctx.db.get(args.altarId);
+    if (!altar) {
+      throw new Error("Altar not found");
+    }
+
+    // Check if user is the owner (only owners can update altar metadata)
+    if (altar.ownerId !== identity.subject) {
+      throw new Error(
+        "Access denied: Only the altar owner can update metadata"
+      );
+    }
+
+    // Validate inputs
+    if (args.title !== undefined) {
+      if (args.title.trim().length === 0) {
+        throw new Error("Title cannot be empty");
+      }
+      if (args.title.length > 200) {
+        throw new Error("Title cannot exceed 200 characters");
+      }
+    }
+
+    if (args.description !== undefined && args.description.length > 1000) {
+      throw new Error("Description cannot exceed 1000 characters");
+    }
+
+    // Build update object with only provided fields
+    const updateData: Partial<{
+      title: string;
+      description: string | undefined;
+      tags: string[] | undefined;
+      culturalElements: string[] | undefined;
+      updatedAt: number;
+    }> = {
+      updatedAt: Date.now(),
+    };
+
+    if (args.title !== undefined) {
+      updateData.title = args.title.trim();
+    }
+    if (args.description !== undefined) {
+      updateData.description = args.description;
+    }
+    if (args.tags !== undefined) {
+      updateData.tags = args.tags;
+    }
+    if (args.culturalElements !== undefined) {
+      updateData.culturalElements = args.culturalElements;
+    }
+
+    // Update the altar
+    await ctx.db.patch(args.altarId, updateData);
+  },
+});
+
+// Mutation to delete altar with proper cleanup (Requirements 1.4, 1.5)
+export const deleteAltar = mutation({
+  args: {
+    altarId: v.id("altars"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Validate authentication
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get the altar to verify ownership
+    const altar = await ctx.db.get(args.altarId);
+    if (!altar) {
+      throw new Error("Altar not found");
+    }
+
+    // Check if user is the owner (only owners can delete altars)
+    if (altar.ownerId !== identity.subject) {
+      throw new Error(
+        "Access denied: Only the altar owner can delete the altar"
+      );
+    }
+
+    // Check if altar has active collaborators (Requirement 1.5)
+    const activeCollaborators = await ctx.db
+      .query("collaborators")
+      .withIndex("by_altar", (q) => q.eq("altarId", args.altarId))
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .collect();
+
+    if (activeCollaborators.length > 0) {
+      throw new Error(
+        "Cannot delete altar with active collaborators. Please remove all collaborators first."
+      );
+    }
+
+    // Clean up related records before deleting the altar
+
+    // 1. Delete all collaborator records (including pending and removed ones)
+    const allCollaborators = await ctx.db
+      .query("collaborators")
+      .withIndex("by_altar", (q) => q.eq("altarId", args.altarId))
+      .collect();
+
+    for (const collaborator of allCollaborators) {
+      await ctx.db.delete(collaborator._id);
+    }
+
+    // 2. Delete all share records
+    const allShares = await ctx.db
+      .query("altar_shares")
+      .withIndex("by_altar", (q) => q.eq("altarId", args.altarId))
+      .collect();
+
+    for (const share of allShares) {
+      await ctx.db.delete(share._id);
+    }
+
+    // 3. Finally delete the altar itself
+    await ctx.db.delete(args.altarId);
   },
 });

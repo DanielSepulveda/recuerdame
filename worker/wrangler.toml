@@ -13,11 +13,24 @@ script_name = "recuerdame-tldraw-sync"
 tag = "v1"
 new_classes = ["TldrawDurableObject"]
 
-# R2 bucket binding for assets and snapshots
-[[r2_buckets]]
-binding = "TLDRAW_BUCKET"
-bucket_name = "recuerdame-tldraw"
+# Development Environment
+[env.dev]
+name = "recuerdame-tldraw-sync-dev"
 
-# CORS configuration
-[vars]
-ALLOWED_ORIGINS = "http://localhost:3000,https://recuerdame.vercel.app"
+[[env.dev.r2_buckets]]
+binding = "TLDRAW_BUCKET"
+bucket_name = "dev-recuerdame-tldraw"
+
+[env.dev.vars]
+ALLOWED_ORIGINS = "http://localhost:3000"
+
+# Production Environment
+[env.production]
+name = "recuerdame-tldraw-sync"
+
+[[env.production.r2_buckets]]
+binding = "TLDRAW_BUCKET"
+bucket_name = "prd-recuerdame-tldraw"
+
+[env.production.vars]
+ALLOWED_ORIGINS = "http://localhost:3000,https://recuerdame.vercel.app,https://recuerdame.app"

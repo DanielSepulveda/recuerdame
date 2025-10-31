@@ -1,5 +1,6 @@
-import { TLSocketRoom } from '@tldraw/sync-core';
-import { TLRecord } from '@tldraw/tlschema';
+import { TLSocketRoom } from "@tldraw/sync-core";
+import { TLRecord, createTLSchema } from "@tldraw/tlschema";
+import throttle from "lodash.throttle";
 
 export interface Env {
   TLDRAW_ROOMS: DurableObjectNamespace;
@@ -7,13 +8,18 @@ export interface Env {
   ALLOWED_ORIGINS: string;
 }
 
+// Custom schema supporting custom shapes/bindings (extend as needed)
+const schema = createTLSchema();
+
 export class TldrawDurableObject implements DurableObject {
   private room: TLSocketRoom<TLRecord> | null = null;
   private roomId: string;
+  private snapshotPromise: Promise<any> | null = null;
+  private throttledSave: (() => void) | null = null;
 
   constructor(
     private state: DurableObjectState,
-    private env: Env
+    private env: Env,
   ) {
     this.roomId = state.id.toString();
   }
@@ -22,14 +28,14 @@ export class TldrawDurableObject implements DurableObject {
     const url = new URL(request.url);
 
     // Handle CORS preflight
-    if (request.method === 'OPTIONS') {
+    if (request.method === "OPTIONS") {
       return new Response(null, {
         headers: this.getCorsHeaders(request),
       });
     }
 
     // WebSocket upgrade for sync connection
-    if (request.headers.get('Upgrade') === 'websocket') {
+    if (request.headers.get("Upgrade") === "websocket") {
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair);
 
@@ -42,54 +48,94 @@ export class TldrawDurableObject implements DurableObject {
       });
     }
 
-    return new Response('Expected WebSocket', {
+    return new Response("Expected WebSocket", {
       status: 400,
       headers: this.getCorsHeaders(request),
     });
   }
 
   private async handleWebSocket(ws: WebSocket) {
-    // Lazy initialize room on first connection
-    if (!this.room) {
-      this.room = new TLSocketRoom<TLRecord>({
-        // Load persisted state from R2
-        initialSnapshot: await this.loadSnapshot(),
+    try {
+      // Lazy initialize room on first connection
+      if (!this.room) {
+        console.log(`[Room ${this.roomId}] Initializing room`);
 
-        // Persist changes to R2
-        onDataChange: async () => {
-          await this.saveSnapshot();
-        },
+        // Load snapshot once (lazy loading pattern)
+        const initialSnapshot = await this.getSnapshot();
 
-        // Clean up when room is idle
-        onSessionRemoved: async (room, { numSessionsRemaining }) => {
-          // If no more sessions, save final snapshot
-          if (numSessionsRemaining === 0) {
-            await this.saveSnapshot();
-          }
-        },
+        // Create throttled save function (10s interval)
+        this.throttledSave = throttle(() => {
+          this.saveSnapshot().catch((err) =>
+            console.error(`[Room ${this.roomId}] Save error:`, err),
+          );
+        }, 10000);
+
+        this.room = new TLSocketRoom<TLRecord>({
+          initialSnapshot,
+          schema,
+
+          // Throttled persistence on data change
+          onDataChange: () => {
+            if (this.throttledSave) {
+              this.throttledSave();
+            }
+          },
+
+          // Clean up when sessions removed
+          onSessionRemoved: async (room, args) => {
+            console.log(
+              `[Room ${this.roomId}] Session removed. Remaining: ${args.numSessionsRemaining}`,
+            );
+
+            // Save final snapshot when last session disconnects
+            if (args.numSessionsRemaining === 0) {
+              console.log(`[Room ${this.roomId}] Last session left, saving final snapshot`);
+              await this.saveSnapshot();
+            }
+          },
+        });
+      }
+
+      // Connect WebSocket to room
+      const sessionId = crypto.randomUUID();
+      console.log(`[Room ${this.roomId}] New connection: ${sessionId}`);
+
+      this.room.handleSocketConnect({
+        socket: ws,
+        sessionId,
       });
+    } catch (error) {
+      console.error(`[Room ${this.roomId}] WebSocket error:`, error);
+      ws.close(1011, "Internal error");
     }
+  }
 
-    // Connect WebSocket to room
-    this.room.handleSocketConnect({
-      socket: ws,
-      sessionId: crypto.randomUUID(),
-    });
+  private async getSnapshot() {
+    // Lazy loading: only load snapshot once
+    if (!this.snapshotPromise) {
+      this.snapshotPromise = this.loadSnapshot();
+    }
+    return this.snapshotPromise;
   }
 
   private async loadSnapshot() {
     try {
       const key = `room-${this.roomId}.json`;
+      console.log(`[Room ${this.roomId}] Loading snapshot from R2: ${key}`);
+
       const object = await this.env.TLDRAW_BUCKET.get(key);
 
       if (!object) {
+        console.log(`[Room ${this.roomId}] No existing snapshot, starting fresh`);
         return undefined;
       }
 
       const data = await object.text();
-      return JSON.parse(data);
+      const snapshot = JSON.parse(data);
+      console.log(`[Room ${this.roomId}] Loaded snapshot successfully`);
+      return snapshot;
     } catch (error) {
-      console.error('Failed to load snapshot:', error);
+      console.error(`[Room ${this.roomId}] Failed to load snapshot:`, error);
       return undefined;
     }
   }
@@ -101,32 +147,33 @@ export class TldrawDurableObject implements DurableObject {
       const snapshot = this.room.getCurrentSnapshot();
       const key = `room-${this.roomId}.json`;
 
-      await this.env.TLDRAW_BUCKET.put(
-        key,
-        JSON.stringify(snapshot),
-        {
-          httpMetadata: {
-            contentType: 'application/json',
-          },
-        }
-      );
+      console.log(`[Room ${this.roomId}] Saving snapshot to R2: ${key}`);
+
+      await this.env.TLDRAW_BUCKET.put(key, JSON.stringify(snapshot), {
+        httpMetadata: {
+          contentType: "application/json",
+        },
+      });
+
+      console.log(`[Room ${this.roomId}] Snapshot saved successfully`);
     } catch (error) {
-      console.error('Failed to save snapshot:', error);
+      console.error(`[Room ${this.roomId}] Failed to save snapshot:`, error);
+      throw error;
     }
   }
 
   private getCorsHeaders(request: Request): Record<string, string> {
-    const origin = request.headers.get('Origin') || '';
-    const allowedOrigins = this.env.ALLOWED_ORIGINS.split(',');
+    const origin = request.headers.get("Origin") || "";
+    const allowedOrigins = this.env.ALLOWED_ORIGINS.split(",");
 
     const headers: Record<string, string> = {
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Max-Age': '86400',
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Max-Age": "86400",
     };
 
     if (allowedOrigins.includes(origin)) {
-      headers['Access-Control-Allow-Origin'] = origin;
+      headers["Access-Control-Allow-Origin"] = origin;
     }
 
     return headers;

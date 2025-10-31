@@ -4,18 +4,24 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "dev": "wrangler dev --env dev",
+    "deploy": "wrangler deploy --env production",
+    "deploy:dev": "wrangler deploy --env dev",
     "tail": "wrangler tail",
+    "tail:dev": "wrangler tail --env dev",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@tldraw/sync-core": "^4.1.2",
     "@tldraw/tlschema": "^4.1.2",
-    "@tldraw/utils": "^4.1.2"
+    "@tldraw/utils": "^4.1.2",
+    "cloudflare-workers-unfurl": "^0.0.8",
+    "itty-router": "^5.0.22",
+    "lodash.throttle": "^4.1.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241127.0",
+    "@types/lodash.throttle": "^4.1.9",
     "typescript": "^5.7.3",
     "wrangler": "^4.45.3"
   }

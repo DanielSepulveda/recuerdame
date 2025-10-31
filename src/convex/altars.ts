@@ -107,6 +107,74 @@ export const listMy = query({
   },
 });
 
+// Query to fetch all altars user owns or collaborates on as editor
+export const listMyAltarsAndCollaborations = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("altars"),
+      _creationTime: v.number(),
+      title: v.string(),
+      description: v.optional(v.string()),
+      ownerId: v.string(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      roomId: v.string(),
+      tags: v.optional(v.array(v.string())),
+      culturalElements: v.optional(v.array(v.string())),
+      // User's role for this altar
+      userRole: v.union(v.literal("owner"), v.literal("editor")),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+
+    // Fetch owned altars
+    const ownedAltars = await ctx.db
+      .query("altars")
+      .withIndex("by_owner", (q) => q.eq("ownerId", identity.subject))
+      .collect();
+
+    // Fetch active editor collaborations
+    const collaborations = await ctx.db
+      .query("collaborators")
+      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("status"), "active"),
+          q.eq(q.field("role"), "editor"),
+        ),
+      )
+      .collect();
+
+    // Fetch altars for collaborations
+    const collaboratedAltars = await Promise.all(
+      collaborations.map(async (collab) => {
+        const altar = await ctx.db.get(collab.altarId);
+        return altar;
+      }),
+    );
+
+    // Combine and annotate with role
+    const ownedWithRole = ownedAltars.map((altar) => ({
+      ...altar,
+      userRole: "owner" as const,
+    }));
+
+    const collaboratedWithRole = collaboratedAltars
+      .filter((altar) => altar !== null)
+      .map((altar) => ({
+        ...altar!,
+        userRole: "editor" as const,
+      }));
+
+    return [...ownedWithRole, ...collaboratedWithRole];
+  },
+});
+
 // Query to fetch altar details by ID with permission checks (Requirement 1.3)
 export const getById = query({
   args: {

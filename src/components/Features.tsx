@@ -1,5 +1,5 @@
+import { Palette, Share2, Sparkles, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Users, Sparkles, Share2, Palette } from "lucide-react";
 
 const features = [
   {

@@ -47,7 +47,9 @@ const CallToAction = () => {
 
           <div className="grid grid-cols-2 gap-12 max-w-xl mx-auto mt-16 pt-16 border-t border-border/50">
             <div className="text-center">
-              <div className="text-4xl font-bold text-[hsl(30,95%,55%)] mb-2">1000+</div>
+              <div className="text-4xl font-bold text-[hsl(30,95%,55%)] mb-2">
+                1000+
+              </div>
               <div className="text-sm text-muted-foreground">
                 Altares Creados
               </div>

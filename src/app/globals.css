@@ -140,7 +140,7 @@
   }
 
   .papel-picado::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 0;
     left: 0;
@@ -163,8 +163,9 @@
 
   /* Glowing Text Effect */
   .glow-text {
-    text-shadow: 0 0 20px hsl(35 100% 65% / 0.5),
-                 0 0 40px hsl(30 95% 55% / 0.3);
+    text-shadow:
+      0 0 20px hsl(35 100% 65% / 0.5),
+      0 0 40px hsl(30 95% 55% / 0.3);
   }
 
   /* Float Animation */
@@ -173,8 +174,13 @@
   }
 
   @keyframes float {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-20px); }
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-20px);
+    }
   }
 
   /* Glow Animation */
@@ -197,7 +203,13 @@
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }

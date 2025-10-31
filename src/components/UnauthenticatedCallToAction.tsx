@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { useAuthModal } from "@/contexts/AuthModalContext";
 
 const UnauthenticatedCallToAction = () => {
-  const { openSignUp, openSignIn } = useAuthModal();
+  const { openSignIn } = useAuthModal();
 
   return (
     <section className="py-24 px-4 relative overflow-hidden">
@@ -36,7 +36,7 @@ const UnauthenticatedCallToAction = () => {
               variant="hero"
               size="lg"
               className="text-xl px-12 py-7 h-auto animate-glow"
-              onClick={openSignUp}
+              onClick={openSignIn}
             >
               Crear Mi Altar
             </Button>

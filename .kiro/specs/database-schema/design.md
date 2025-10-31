@@ -52,7 +52,7 @@ altars: defineTable({
   updatedAt: v.number(), // Unix timestamp
 
   // tldraw integration
-  tldrawRoomId: v.string(), // Unique room ID for tldraw sync
+  roomId: v.string(), // Unique room ID for tldraw sync
 
   // Note: Public sharing is determined by existence of altar_shares record
 
@@ -134,7 +134,7 @@ interface Altar {
   ownerId: string; // Clerk user ID
   createdAt: number;
   updatedAt: number;
-  tldrawRoomId: string;
+  roomId: string;
   tags?: string[];
   culturalElements?: string[];
 }

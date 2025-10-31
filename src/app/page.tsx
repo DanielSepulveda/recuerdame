@@ -36,9 +36,7 @@ function HomeContent() {
         {/* Footer */}
         <footer className="py-8 px-4 border-t border-border/30">
           <div className="container mx-auto text-center text-muted-foreground">
-            <p className="mb-2">
-              Hecho con ❤️ para honrar nuestras tradiciones
-            </p>
+            <p className="mb-2">Hecho con ❤️ para honrar nuestras tradiciones</p>
             <p className="text-sm">
               © 2025 Recuerdame.app | Celebrando el Día de los Muertos.
             </p>

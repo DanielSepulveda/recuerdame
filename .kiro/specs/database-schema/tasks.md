@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Update Convex schema with core altar tables
+- [x] 1. Update Convex schema with core altar tables
   - Replace the existing sample schema in `src/convex/schema.ts` with the three main tables: altars, collaborators, and altar_shares
   - Add proper field validations and indexes as specified in the design
   - _Requirements: 1.1, 1.2, 1.3, 1.4_

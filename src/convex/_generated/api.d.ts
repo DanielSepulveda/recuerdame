@@ -9,7 +9,6 @@
  */
 
 import type * as altars from "../altars.js";
-import type * as myFunctions from "../myFunctions.js";
 
 import type {
   ApiFromModules,
@@ -27,7 +26,6 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   altars: typeof altars;
-  myFunctions: typeof myFunctions;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

@@ -4,7 +4,8 @@ import { mutation, query } from "./_generated/server";
 
 export const create = mutation({
   args: {
-    name: v.optional(v.string()),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
   },
   returns: v.string(),
   handler: async (ctx, args) => {
@@ -13,41 +14,47 @@ export const create = mutation({
       throw new Error("Not authenticated");
     }
 
-    const customId = createId();
-    const name = args.name || `Altar ${new Date().toLocaleDateString("es-MX")}`;
+    const roomId = createId();
+    const title =
+      args.title || `Altar ${new Date().toLocaleDateString("es-MX")}`;
+    const now = Date.now();
 
     await ctx.db.insert("altars", {
-      customId,
-      name,
-      createdBy: identity.subject,
-      createdAt: Date.now(),
-      isPublic: false,
+      title,
+      description: args.description,
+      ownerId: identity.subject,
+      createdAt: now,
+      updatedAt: now,
+      roomId,
     });
 
-    return customId;
+    return roomId;
   },
 });
 
 export const get = query({
   args: {
-    customId: v.string(),
+    roomId: v.string(),
   },
   returns: v.union(
     v.object({
       _id: v.id("altars"),
       _creationTime: v.number(),
-      customId: v.string(),
-      name: v.string(),
-      createdBy: v.string(),
+      title: v.string(),
+      description: v.optional(v.string()),
+      ownerId: v.string(),
       createdAt: v.number(),
-      isPublic: v.boolean(),
+      updatedAt: v.number(),
+      roomId: v.string(),
+      tags: v.optional(v.array(v.string())),
+      culturalElements: v.optional(v.array(v.string())),
     }),
-    v.null()
+    v.null(),
   ),
   handler: async (ctx, args) => {
     const altar = await ctx.db
       .query("altars")
-      .withIndex("by_customId", (q) => q.eq("customId", args.customId))
+      .filter((q) => q.eq(q.field("roomId"), args.roomId))
       .unique();
 
     return altar ?? null;
@@ -60,12 +67,15 @@ export const listMy = query({
     v.object({
       _id: v.id("altars"),
       _creationTime: v.number(),
-      customId: v.string(),
-      name: v.string(),
-      createdBy: v.string(),
+      title: v.string(),
+      description: v.optional(v.string()),
+      ownerId: v.string(),
       createdAt: v.number(),
-      isPublic: v.boolean(),
-    })
+      updatedAt: v.number(),
+      roomId: v.string(),
+      tags: v.optional(v.array(v.string())),
+      culturalElements: v.optional(v.array(v.string())),
+    }),
   ),
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -75,7 +85,7 @@ export const listMy = query({
 
     const altars = await ctx.db
       .query("altars")
-      .withIndex("by_createdBy", (q) => q.eq("createdBy", identity.subject))
+      .withIndex("by_owner", (q) => q.eq("ownerId", identity.subject))
       .order("desc")
       .collect();
 

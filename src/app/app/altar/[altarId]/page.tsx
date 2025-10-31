@@ -1,19 +1,19 @@
 "use client";
 
-import { Tldraw } from "tldraw";
 import { useSyncDemo } from "@tldraw/sync";
 import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { useParams } from "next/navigation";
+import { Tldraw } from "tldraw";
+import { api } from "@/convex/_generated/api";
 import "tldraw/tldraw.css";
 
 export default function AltarPage() {
   const params = useParams();
-  const customId = params.altarId as string;
+  const roomId = params.altarId as string;
 
-  const altar = useQuery(api.altars.get, { customId });
+  const altar = useQuery(api.altars.get, { roomId });
 
-  const store = useSyncDemo({ roomId: customId });
+  const store = useSyncDemo({ roomId });
 
   if (altar === undefined) {
     return (
